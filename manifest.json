@@ -1,0 +1,9 @@
+{
+  "name": "牙套时间管家",
+  "short_name": "牙套管家",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f7f7fb",
+  "theme_color": "#6c63ff",
+  "icons": []
+}
