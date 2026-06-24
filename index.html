@@ -11,25 +11,24 @@
     *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text)}
     .wrap{max-width:520px;margin:0 auto;padding:18px 16px 28px}
     .top{display:flex;justify-content:space-between;align-items:center;margin:8px 0 18px}
-    h1{font-size:24px;margin:0}.date{font-size:13px;color:var(--muted)}
+    h1{font-size:24px;margin:0} h2{margin-top:0}.date{font-size:13px;color:var(--muted)}
     .card{background:var(--card);border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 8px 22px rgba(0,0,0,.06)}
-    .big{font-size:44px;font-weight:800;letter-spacing:-1px;text-align:center;margin:10px 0}
+    .big{font-size:42px;font-weight:800;letter-spacing:-1px;text-align:center;margin:10px 0}
     .sub{text-align:center;color:var(--muted);font-size:14px}
     .progress{height:12px;background:#e9e9f4;border-radius:99px;overflow:hidden;margin:18px 0 6px}
     .bar{height:100%;width:0;background:var(--main);border-radius:99px;transition:.25s}
     .btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+    .btns3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px}
     button{border:0;border-radius:16px;padding:15px 12px;font-size:16px;font-weight:700;color:#fff;background:var(--main)}
     button.secondary{background:#111} button.danger{background:var(--danger)} button.ok{background:var(--ok)}
     button:disabled{opacity:.45}
     .row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eee}
     .row:last-child{border-bottom:0}.muted{color:var(--muted);font-size:13px}
     input{width:100%;border:1px solid #ddd;border-radius:14px;padding:12px;font-size:16px}
-    .smallbtn{font-size:13px;padding:10px 12px;border-radius:12px}
     .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;position:sticky;bottom:0;background:rgba(247,247,251,.9);backdrop-filter:blur(10px);padding:10px 0}
     .tab{color:#444;background:#fff;box-shadow:0 5px 14px rgba(0,0,0,.05);font-size:13px;padding:11px 4px}
     .tab.active{background:var(--main);color:white}
-    .hide{display:none}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#f1f1ff;color:var(--main);font-size:12px;font-weight:700}
-    textarea{width:100%;min-height:90px;border:1px solid #ddd;border-radius:14px;padding:12px;font-size:15px}
+    .hide{display:none} textarea{width:100%;min-height:90px;border:1px solid #ddd;border-radius:14px;padding:12px;font-size:15px}
   </style>
 </head>
 <body>
@@ -39,10 +38,10 @@
   <section id="page-home">
     <div class="card">
       <div class="sub">今日已佩戴</div>
-      <div class="big" id="wearTime">00:00</div>
+      <div class="big" id="wearTime">00:00:00</div>
       <div class="sub" id="statusText">当前状态：佩戴中</div>
       <div class="progress"><div class="bar" id="bar"></div></div>
-      <div class="sub" id="goalText">目标：22小时 / 今日</div>
+      <div class="sub">目标：22小时 / 今日</div>
       <div class="btns">
         <button id="takeOffBtn" class="danger">摘下牙套</button>
         <button id="putOnBtn" class="ok">戴回牙套</button>
@@ -50,10 +49,27 @@
     </div>
 
     <div class="card">
-      <div class="row"><b>今日摘下累计</b><span id="offTime">00:00</span></div>
-      <div class="row"><b>剩余可摘时间</b><span id="leftOffTime">02:00</span></div>
+      <div class="row"><b>今日摘下累计</b><span id="offTime">00:00:00</span></div>
+      <div class="row"><b>剩余可摘时间</b><span id="leftOffTime">02:00:00</span></div>
+      <div class="row"><b>本次摘下时长</b><span id="currentOffTime">00:00:00</span></div>
+      <div class="row"><b>今日摘下次数</b><span id="offCount">0 次</span></div>
       <div class="row"><b>当前牙套</b><span id="trayInfo">第 1 副</span></div>
-      <div class="row"><b>下次换牙套</b><span id="nextTray">未设置</span></div>
+      <div class="row"><b>换牙套倒计时</b><span id="trayCountdown">未设置</span></div>
+    </div>
+
+    <div class="card">
+      <h2>咬胶计时器</h2>
+      <div class="big" id="chewTime">00:00</div>
+      <div class="sub" id="chewStatus">选择 1 / 2 / 3 分钟开始</div>
+      <div class="btns3">
+        <button onclick="startChew(60)">1分钟</button>
+        <button onclick="startChew(120)">2分钟</button>
+        <button onclick="startChew(180)">3分钟</button>
+      </div>
+      <div class="btns">
+        <button class="secondary" onclick="pauseChew()">暂停</button>
+        <button class="danger" onclick="resetChew()">重置</button>
+      </div>
     </div>
   </section>
 
@@ -72,7 +88,6 @@
   <section id="page-photo" class="hide">
     <div class="card">
       <h2>拍照记录</h2>
-      <p class="muted">可以选择牙齿照片，本地记录日期。网页不会上传你的照片。</p>
       <input id="photoInput" type="file" accept="image/*" capture="environment">
       <br><br><button onclick="savePhoto()">保存照片记录</button>
     </div>
@@ -97,11 +112,27 @@
 </div>
 
 <script>
-const KEY='aligner_pwa_v1';
+const KEY='aligner_pwa_v2';
 const todayKey = () => new Date().toISOString().slice(0,10);
 const pad=n=>String(n).padStart(2,'0');
-const fmt=ms=>{ms=Math.max(0,ms);let m=Math.floor(ms/60000),h=Math.floor(m/60);m%=60;return `${pad(h)}:${pad(m)}`};
+const fmt=ms=>{
+  ms=Math.max(0,ms);
+  const totalSeconds=Math.floor(ms/1000);
+  const h=Math.floor(totalSeconds/3600);
+  const m=Math.floor((totalSeconds%3600)/60);
+  const s=totalSeconds%60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+};
+const fmtShort=ms=>{
+  ms=Math.max(0,ms);
+  const totalSeconds=Math.floor(ms/1000);
+  const m=Math.floor(totalSeconds/60);
+  const s=totalSeconds%60;
+  return `${pad(m)}:${pad(s)}`;
+};
 let data = JSON.parse(localStorage.getItem(KEY)||'{}');
+let chew = {left:0,total:0,running:false,last:0};
+
 function initDay(){
   const d=todayKey();
   data.days ||= {};
@@ -117,23 +148,73 @@ function currentOffMs(){
   const x=day();
   return x.offMs + (!x.isWearing ? Date.now()-x.lastChange : 0);
 }
+function getNextTrayDate(){
+  const t=data.tray;
+  const start=new Date(t.start+"T00:00:00");
+  start.setDate(start.getDate()+Number(t.daysPerTray||7));
+  return start;
+}
+function trayCountdownText(){
+  const target=getNextTrayDate();
+  const diff=target.getTime()-Date.now();
+  if(diff<=0) return "可以换牙套了";
+  const days=Math.floor(diff/86400000);
+  const hours=Math.floor((diff%86400000)/3600000);
+  return `还剩 ${days} 天 ${hours} 小时`;
+}
 function update(){
   initDay();
   document.getElementById('today').textContent = todayKey();
   const off=currentOffMs(), wear=24*3600000-off, goal=22*3600000;
+  const currentOff = day().isWearing ? 0 : Date.now()-day().lastChange;
+  const offCount = day().events.filter(e=>e[0]==='off').length;
   document.getElementById('wearTime').textContent=fmt(wear);
   document.getElementById('offTime').textContent=fmt(off);
   document.getElementById('leftOffTime').textContent=fmt(2*3600000-off);
+  document.getElementById('currentOffTime').textContent=fmt(currentOff);
+  document.getElementById('offCount').textContent=offCount+' 次';
   document.getElementById('bar').style.width=Math.min(100,wear/goal*100)+'%';
   document.getElementById('statusText').textContent='当前状态：'+(day().isWearing?'佩戴中':'已摘下');
   document.getElementById('takeOffBtn').disabled=!day().isWearing;
   document.getElementById('putOnBtn').disabled=day().isWearing;
   document.getElementById('trayInfo').textContent=`第 ${data.tray.current} / ${data.tray.total} 副`;
-  const next = new Date(data.tray.start); next.setDate(next.getDate()+Number(data.tray.daysPerTray||7));
-  document.getElementById('nextTray').textContent=next.toISOString().slice(0,10);
+  document.getElementById('trayCountdown').textContent=trayCountdownText();
+  updateChew();
 }
 document.getElementById('takeOffBtn').onclick=()=>{ if(day().isWearing){day().isWearing=false;day().lastChange=Date.now();day().events.push(['off',Date.now()]);save();update();}};
 document.getElementById('putOnBtn').onclick=()=>{ if(!day().isWearing){day().offMs+=Date.now()-day().lastChange;day().isWearing=true;day().lastChange=Date.now();day().events.push(['on',Date.now()]);save();update();}};
+
+function startChew(seconds){
+  chew={left:seconds*1000,total:seconds*1000,running:true,last:Date.now()};
+  updateChew();
+}
+function pauseChew(){
+  if(chew.running){ tickChew(); chew.running=false; document.getElementById('chewStatus').textContent='已暂停'; }
+  else if(chew.left>0){ chew.running=true; chew.last=Date.now(); document.getElementById('chewStatus').textContent='计时中'; }
+}
+function resetChew(){
+  chew={left:0,total:0,running:false,last:0};
+  updateChew();
+}
+function tickChew(){
+  if(!chew.running) return;
+  const now=Date.now();
+  chew.left -= now-chew.last;
+  chew.last=now;
+  if(chew.left<=0){
+    chew.left=0; chew.running=false;
+    document.getElementById('chewStatus').textContent='完成！可以停止咬胶';
+    if(navigator.vibrate) navigator.vibrate([300,150,300]);
+    alert('咬胶计时完成');
+  }
+}
+function updateChew(){
+  tickChew();
+  document.getElementById('chewTime').textContent=fmtShort(chew.left);
+  if(chew.running) document.getElementById('chewStatus').textContent='计时中';
+  else if(chew.left===0 && chew.total===0) document.getElementById('chewStatus').textContent='选择 1 / 2 / 3 分钟开始';
+}
+
 function showPage(name,btn){
   ['home','tray','photo','note'].forEach(p=>document.getElementById('page-'+p).classList.toggle('hide',p!==name));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); btn.classList.add('active');
