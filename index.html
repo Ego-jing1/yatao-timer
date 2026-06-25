@@ -81,6 +81,16 @@
         <div class="row"><b>本周期咬胶</b><span id="chewToday">00:00:00</span></div>
       </div>
       <div class="card">
+        <h2>手动补记摘下时间</h2>
+        <p class="muted">忘记点击“摘下/戴回”时，可以在这里补记。会自动加到当前统计周期。</p>
+        <label>摘下时间</label><input id="manualOffStart" type="datetime-local">
+        <br><br>
+        <label>戴回时间</label><input id="manualOffEnd" type="datetime-local">
+        <br><br>
+        <button id="addManualOffBtn" class="warn">添加补记</button>
+      </div>
+
+      <div class="card">
         <h2>牙套进度</h2><div class="row"><b>当前牙套</b><span id="trayInfo">第 1 / 42 副</span></div>
         <div class="progress"><div class="bar ok" id="trayBar"></div></div><div class="sub" id="trayPercent">进度 0%</div>
         <div class="row"><b>换牙套倒计时</b><span id="trayCountdown">未设置</span></div><div class="row"><b>本副已佩戴</b><span id="trayUsed">0 天 0 小时</span></div>
@@ -132,7 +142,7 @@
 const SUPABASE_URL = "https://bceamidjnggzpvumswdg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vyHgXa5d0H1q845f5poKcA_6UnXHXkL";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const KEY='aligner_pwa_supabase_v6';
+const KEY='aligner_pwa_supabase_v7_manual';
 const $ = id => document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const fmt=ms=>{ms=Math.max(0,ms);const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return `${pad(h)}:${pad(m)}:${pad(s)}`;}
@@ -191,6 +201,33 @@ function pauseChew(){if(chew.running){tickChew();chew.running=false;$('chewStatu
 function resetChew(){chew={left:0,total:0,running:false,last:0};updateChew();}
 function tickChew(){if(!chew.running)return;const now=Date.now(),used=now-chew.last;chew.left-=used;chew.last=now;if(used>0)period().chewMs=(period().chewMs||0)+used;if(chew.left<=0){chew.left=0;chew.running=false;$('chewStatus').textContent='完成！可以停止咬胶';if(navigator.vibrate)navigator.vibrate([300,150,300]);alert('咬胶计时完成');}localStorage.setItem(KEY,JSON.stringify(data));scheduleSync();}
 function updateChew(){tickChew();$('chewTime').textContent=fmtShort(chew.left);if(chew.running)$('chewStatus').textContent='计时中';else if(chew.left===0&&chew.total===0)$('chewStatus').textContent='选择 1 / 2 / 3 分钟开始';}
+function addManualOff(){
+  const startValue=$('manualOffStart').value;
+  const endValue=$('manualOffEnd').value;
+  if(!startValue || !endValue) return alert('请填写摘下时间和戴回时间');
+  const start=new Date(startValue);
+  const end=new Date(endValue);
+  if(isNaN(start.getTime()) || isNaN(end.getTime())) return alert('时间格式不正确');
+  if(end<=start) return alert('戴回时间必须晚于摘下时间');
+
+  const now=new Date();
+  const currentStart=cycleStartFor(now);
+  const currentEnd=new Date(currentStart.getTime()+86400000);
+  if(start<currentStart || end>currentEnd){
+    const ok=confirm('这段时间不完全属于当前统计周期，当前版本会先记入当前周期。仍然添加吗？');
+    if(!ok) return;
+  }
+
+  const p=period();
+  const ms=end-start;
+  p.offMs += ms;
+  p.events.push(['manual_off', start.getTime(), end.getTime(), ms]);
+  save();
+  update();
+  $('manualOffStart').value='';
+  $('manualOffEnd').value='';
+  alert('已补记摘下时间：'+fmt(ms));
+}
 function changeTrayNow(){const s=data.settings;if(s.currentTray>=s.totalTrays)return alert('已经是最后一副了');data.trayHistory.unshift({from:s.currentTray,to:s.currentTray+1,at:new Date().toLocaleString()});s.currentTray+=1;const now=new Date();s.trayStartDate=dateStr(now);s.trayStartTime=`${pad(now.getHours())}:${pad(now.getMinutes())}`;save();update();renderTrayHistory();alert('已记录换牙套');}
 function saveTraySettings(){data.settings={totalTrays:+$('totalTrays').value,currentTray:+$('currentTray').value,daysPerTray:+$('daysPerTray').value,trayStartDate:$('trayStartDate').value||dateStr(new Date()),trayStartTime:$('trayStartTime').value||'12:00',cycleStartTime:$('cycleStartTime').value||'12:00'};save();update();alert('已保存');}
 function fillTray(){const s=data.settings;$('totalTrays').value=s.totalTrays;$('currentTray').value=s.currentTray;$('daysPerTray').value=s.daysPerTray;$('trayStartDate').value=s.trayStartDate;$('trayStartTime').value=s.trayStartTime;$('cycleStartTime').value=s.cycleStartTime;renderTrayHistory();}
@@ -233,7 +270,7 @@ function bindEvents(){
   $('takeOffBtn').addEventListener('click',takeOff); $('putOnBtn').addEventListener('click',putOn); $('changeTrayBtn').addEventListener('click',changeTrayNow);
   $('pauseChewBtn').addEventListener('click',pauseChew); $('resetChewBtn').addEventListener('click',resetChew);
   document.querySelectorAll('[data-chew]').forEach(b=>b.addEventListener('click',()=>startChew(Number(b.dataset.chew))));
-  $('saveTrayBtn').addEventListener('click',saveTraySettings); $('saveNoteBtn').addEventListener('click',saveNote); $('saveReminderBtn').addEventListener('click',saveReminder);
+  $('saveTrayBtn').addEventListener('click',saveTraySettings); $('saveNoteBtn').addEventListener('click',saveNote); $('saveReminderBtn').addEventListener('click',saveReminder); $('addManualOffBtn').addEventListener('click',addManualOff);
   document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page,b)));
 }
 boot();

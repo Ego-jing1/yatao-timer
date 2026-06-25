@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aligner-supabase-v5';
+const CACHE_NAME = 'aligner-supabase-v7-manual';
 const APP_SHELL = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
