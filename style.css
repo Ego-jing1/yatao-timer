@@ -38,3 +38,16 @@ canvas{width:100%;height:260px}.ringBox{display:grid;grid-template-columns:1fr 1
 .dayCell.ok{background:#eaf8ef;color:#2d9f5b}.dayCell.bad{background:#fff3e5;color:#b96b00}.dayCell.zero{color:#aaa}.dayCell .mini{display:block;font-size:10px;color:#777;font-weight:500;margin-top:2px}
 .careGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.careItem{background:#f7f7ff;border-radius:18px;padding:14px;text-align:center;font-weight:800}.careItem.done{background:#eaf8ef;color:#2d9f5b}
 @media(max-width:430px){.big{font-size:36px}.tab{font-size:11px}.wrap{padding-left:12px;padding-right:12px}.ring{width:104px;height:104px}.ring:before{width:74px;height:74px}.thumbGrid{grid-template-columns:repeat(2,1fr)}}
+
+.swipeRow{position:relative;overflow:hidden;background:#fff;border:1px solid var(--line);border-bottom:0}
+.swipeRow:first-of-type{border-top-left-radius:12px;border-top-right-radius:12px}
+.swipeRow:last-of-type{border-bottom:1px solid var(--line);border-bottom-left-radius:12px;border-bottom-right-radius:12px}
+.swipeActions{position:absolute;right:0;top:0;height:100%;display:flex;z-index:1}
+.swipeActions button{border-radius:0;height:100%;min-width:88px;padding:0 12px;font-size:14px}
+.swipeActions .editAction{background:#4c7dff}
+.swipeActions .deleteAction{background:#ff4d57}
+.swipeContent{position:relative;z-index:2;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 12px;transition:transform .22s ease;border-bottom:1px solid var(--line)}
+.swipeRow:last-of-type .swipeContent{border-bottom:0}
+.swipeRow.open .swipeContent{transform:translateX(-176px)}
+.chevron{font-size:22px;color:#999}
+@media(hover:hover){.swipeRow:hover .swipeContent{transform:translateX(-176px)}}

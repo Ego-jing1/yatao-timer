@@ -1,7 +1,7 @@
 
 (() => {
 'use strict';
-const VERSION="4.0.0";
+const VERSION="4.1.0";
 const SUPABASE_URL="https://bceamidjnggzpvumswdg.supabase.co";
 const SUPABASE_KEY="sb_publishable_vyHgXa5d0H1q845f5poKcA_6UnXHXkL";
 const BUCKET="ortho-photos";
@@ -15,6 +15,7 @@ const fmtShort=ms=>fmt(ms).slice(3);
 const dateStr=d=>d.toISOString().slice(0,10);
 let user=null,syncTimer=null,currentPage="home",calendarDate=new Date(),chew={left:0,total:0,running:false,last:0};
 let state=loadState();
+let selectedCalendarKey = periodKey();
 
 function loadState(){
  const now=new Date();
@@ -47,8 +48,25 @@ function pageHtml(p){return ({home:homeHtml,calendar:calendarHtml,stats:statsHtm
 function homeHtml(){let p=period(),start=cycleStartFor(),end=new Date(start.getTime()+DAY_MS),wear=wearMs(),off=offMs(),pct=Math.min(100,wear/GOAL_MS*100),cur=p.isWearing?0:Date.now()-p.lastChange;return `<div class="card"><div class="sub">本周期已佩戴</div><div class="big">${fmt(wear)}</div><div class="sub">${p.isWearing?"佩戴中":"已摘下"}</div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="sub">${wear>=GOAL_MS?"已达标":"目标 22 小时"}</div><div class="btn2"><button id="markOff" class="red" ${!p.isWearing?"disabled":""}>摘下牙套</button><button id="markOn" class="green" ${p.isWearing?"disabled":""}>戴回牙套</button></div></div><div class="card"><h2>今日概览</h2><div class="row"><b>统计周期</b><span>${dateStr(start)} ${pad(start.getHours())}:${pad(start.getMinutes())} - ${dateStr(end)} ${pad(end.getHours())}:${pad(end.getMinutes())}</span></div><div class="row"><b>摘下累计</b><span>${fmt(off)}</span></div><div class="row"><b>剩余可摘</b><span>${fmt(7200000-off)}</span></div><div class="row"><b>本次摘下</b><span>${fmt(cur)}</span></div><div class="row"><b>摘下次数</b><span>${(p.events||[]).filter(e=>String(e[0]).includes("off")).length} 次</span></div><div class="row"><b>连续达标</b><span>${streak()} 天 🔥</span></div><div class="row"><b>咬胶累计</b><span>${fmt(p.chewMs||0)}</span></div></div><div class="card"><h2>咬胶计时器</h2><div class="big" id="chewTime">${fmtShort(chew.left)}</div><div class="btn3"><button data-chew="60">1分钟</button><button data-chew="120">2分钟</button><button data-chew="180">3分钟</button></div><div class="btn2"><button id="chewPause" class="black">暂停/继续</button><button id="chewReset" class="red">重置</button></div></div><div class="card"><h2>护理打卡</h2><div class="careGrid">${careBtn("floss","牙线")}${careBtn("irrigator","冲牙器")}${careBtn("mouthwash","漱口水")}${careBtn("chew","咬胶")}</div></div>`}
 function careBtn(k,l){let d=periodKey(),done=state.care?.[d]?.[k];return `<div class="careItem ${done?"done":""}" data-care="${k}">${done?"✓ ":""}${l}</div>`}
 
-function calendarHtml(){let y=calendarDate.getFullYear(),m=calendarDate.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),startDay=(first.getDay()+6)%7;let cells=[];for(let i=0;i<startDay;i++)cells.push(`<div class="dayCell empty"></div>`);for(let d=1;d<=last.getDate();d++){let dt=new Date(y,m,d),k=dateStr(dt),p=state.periods[k],wear=p?wearMs(k):0,cls=p?(wear>=GOAL_MS?"ok":"bad"):"zero",today=k===dateStr(new Date())?"today":"";cells.push(`<div class="dayCell ${cls} ${today}" data-day="${k}">${d}<span class="mini">${p?(wear/3600000).toFixed(1)+"h":""}</span></div>`)}let selected=periodKey();return `<div class="card"><div class="calendarHead"><button id="prevMonth" class="gray">‹</button><h2>${y} 年 ${m+1} 月</h2><button id="nextMonth" class="gray">›</button></div><div class="calendarGrid">${["一","二","三","四","五","六","日"].map(w=>`<div class="weekday">${w}</div>`).join("")}${cells.join("")}</div></div><div class="card"><h2 id="dayTitle">${selected} 摘下记录</h2><div id="dayRecords">${recordsForKey(selected)}</div></div><div class="card"><h2>手动补记</h2><input id="manualEditIndex" type="hidden"><label>摘下时间</label><input id="manualStart" type="datetime-local"><br><br><label>戴回时间</label><input id="manualEnd" type="datetime-local"><br><br><div class="btn2"><button id="manualAdd" class="green">添加补记</button><button id="manualCancel" class="gray hidden">取消修改</button></div></div>`}
-function recordsForKey(k){let p=ensurePeriod(k),list=offIntervalsForPeriod(p);if(!list.length)return `<p class="muted">暂无摘下记录</p>`;return list.map((it,i)=>`<div class="offRecord"><span>${timeHM(it.start)} ~ ${timeHM(it.end)} ｜ 摘下 ${Math.round(it.ms/60000)} 分钟${it.type==="current"?"（进行中）":""}</span><span>${it.type==="manual"?`<button class="gray iconBtn editOffRecord" data-index="${i}">✎</button><button class="gray iconBtn deleteOffRecord" data-index="${i}">×</button>`:""}</span></div>`).join("")}
+function calendarHtml(){let y=calendarDate.getFullYear(),m=calendarDate.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),startDay=(first.getDay()+6)%7;let cells=[];for(let i=0;i<startDay;i++)cells.push(`<div class="dayCell empty"></div>`);for(let d=1;d<=last.getDate();d++){let dt=new Date(y,m,d),k=dateStr(dt),p=state.periods[k],wear=p?wearMs(k):0,cls=p?(wear>=GOAL_MS?"ok":"bad"):"zero",today=k===dateStr(new Date())?"today":"";cells.push(`<div class="dayCell ${cls} ${today}" data-day="${k}">${d}<span class="mini">${p?(wear/3600000).toFixed(1)+"h":""}</span></div>`)}let selected=selectedCalendarKey||periodKey();return `<div class="card"><div class="calendarHead"><button id="prevMonth" class="gray">‹</button><h2>${y} 年 ${m+1} 月</h2><button id="nextMonth" class="gray">›</button></div><div class="calendarGrid">${["一","二","三","四","五","六","日"].map(w=>`<div class="weekday">${w}</div>`).join("")}${cells.join("")}</div></div><div class="card"><h2 id="dayTitle">${selected} 摘下记录</h2><div id="dayRecords">${recordsForKey(selected)}</div></div><div class="card"><h2>手动补记</h2><input id="manualEditIndex" type="hidden"><input id="manualEditKey" type="hidden"><label>摘下时间</label><input id="manualStart" type="datetime-local"><br><br><label>戴回时间</label><input id="manualEnd" type="datetime-local"><br><br><div class="btn2"><button id="manualAdd" class="green">添加补记</button><button id="manualCancel" class="gray hidden">取消修改</button></div></div>`}
+function recordsForKey(k){
+  selectedCalendarKey = k;
+  let p=ensurePeriod(k),list=offIntervalsForPeriod(p);
+  if(!list.length)return `<p class="muted">暂无摘下记录</p>`;
+  let totalMin = list.reduce((s,it)=>s+Math.round((it.ms||0)/60000),0);
+  return `<p class="muted">共 ${list.length} 次，摘下 ${Math.floor(totalMin/60) ? Math.floor(totalMin/60)+" 小时 " : ""}${totalMin%60} 分钟</p>` + list.map((it,i)=>`
+    <div class="swipeRow" data-index="${i}">
+      <div class="swipeActions">
+        <button class="editAction editOffRecord" data-index="${i}">✎ 修改</button>
+        <button class="deleteAction deleteOffRecord" data-index="${i}">🗑 删除</button>
+      </div>
+      <div class="swipeContent">
+        <span>${timeHM(it.start)} ~ ${timeHM(it.end)} ｜ 摘下 ${Math.round(it.ms/60000)} 分钟${it.type==="current"?"（进行中）":""}</span>
+        <span class="chevron">›</span>
+      </div>
+    </div>
+  `).join("") + `<p class="muted" style="margin-top:10px">提示：向左滑动记录，可修改或删除。</p>`;
+}
 
 function statsHtml(){let a7=avg(7);return `<div class="card"><h2 class="center">统计</h2><div class="seg"><button class="range active" data-days="7">每日</button><button class="range" data-days="28">每周</button><button class="range" data-days="90">每月</button></div><div class="center"><span class="dot"></span>${state.settings.brand||"时代天使"}</div><div class="rangeText" id="rangeText">最近7周期</div><div class="chartCard"><canvas id="chart" width="500" height="300"></canvas></div><div class="ringBox"><div><div class="ring" id="ring7"><div><b id="avg7">0</b><span>小时</span></div></div><div class="ringLabel">7天平均</div></div><div><div class="ring" id="ring30"><div><b id="avg30">0</b><span>小时</span></div></div><div class="ringLabel">30天平均</div></div></div><div class="grid2" style="margin-top:12px"><div class="stat"><div class="muted">连续达标</div><b>${streak()}天</b></div><div class="stat"><div class="muted">最近7天达标</div><b>${a7.ok} / ${a7.total||7}</b></div></div></div>`}
 
@@ -58,7 +76,26 @@ function diaryHtml(){return `<div class="card"><h2>图文日记</h2><textarea id
 
 function moreHtml(){let total=state.expenses.reduce((s,e)=>s+Number(e.amount||0),0);return `<div class="card"><h2>支出记录</h2><input id="expenseEditId" type="hidden"><input id="expenseAmount" type="number" step="0.01" placeholder="金额"><br><br><select id="expenseCategory"><option>正畸费用</option><option>复诊</option><option>清洁护理</option><option>牙线/冲牙器</option><option>保持器</option><option>交通</option><option>其他</option></select><br><br><input id="expenseDate" type="date" value="${dateStr(new Date())}"><br><br><input id="expenseNote" placeholder="备注"><br><br><div class="btn2"><button id="saveExpense" class="green">保存支出</button><button id="cancelExpenseEdit" class="gray hidden">取消修改</button></div></div><div class="card"><h2>支出统计</h2><div class="muted center">累计支出</div><div class="expenseTotal">¥${total.toFixed(2)}</div>${state.expenses.map(e=>`<div class="row" style="align-items:flex-start"><span><span class="pill">${e.category}</span> ${e.note||""}<br><span class="muted">${e.date}</span></span><span style="text-align:right"><b>¥${Number(e.amount).toFixed(2)}</b><br><button class="gray smallBtn editExpense" data-id="${e.id}">修改</button><button class="red smallBtn deleteExpense" data-id="${e.id}">删除</button></span></div>`).join("")||'<p class="muted">暂无支出</p>'}</div><div class="card"><h2>提醒设置</h2><label>摘下超过提醒</label><select id="offAlert"><option value="30" ${state.reminder.offAlertMin==30?"selected":""}>30分钟</option><option value="60" ${state.reminder.offAlertMin==60?"selected":""}>60分钟</option><option value="90" ${state.reminder.offAlertMin==90?"selected":""}>90分钟</option></select><br><br><button id="saveRemind" class="green">保存提醒</button></div>`}
 
-function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>render("home")}if($("#signout"))$("#signout").onclick=signOut;if($("#pull"))$("#pull").onclick=async()=>{await pullCloud();render(currentPage)};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;$$("[data-chew]").forEach(b=>b.onclick=()=>startChew(Number(b.dataset.chew)));if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};$$("[data-care]").forEach(b=>b.onclick=()=>toggleCare(b.dataset.care));if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
+
+function bindSwipeRows(){
+  $$(".swipeRow").forEach(row=>{
+    let startX=0, currentX=0;
+    row.addEventListener("touchstart",e=>{startX=e.touches[0].clientX;currentX=startX;},{passive:true});
+    row.addEventListener("touchmove",e=>{
+      currentX=e.touches[0].clientX;
+      const dx=currentX-startX;
+      if(dx< -20){row.classList.add("open")}
+      if(dx> 20){row.classList.remove("open")}
+    },{passive:true});
+    row.addEventListener("click",e=>{
+      if(e.target.tagName==="BUTTON")return;
+      $$(".swipeRow").forEach(r=>{if(r!==row)r.classList.remove("open")});
+      row.classList.toggle("open");
+    });
+  });
+}
+
+function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>render("home")}if($("#signout"))$("#signout").onclick=signOut;if($("#pull"))$("#pull").onclick=async()=>{await pullCloud();render(currentPage)};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;$$("[data-chew]").forEach(b=>b.onclick=()=>startChew(Number(b.dataset.chew)));if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};$$("[data-care]").forEach(b=>b.onclick=()=>toggleCare(b.dataset.care));if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
 
 function markOff(){let p=period();if(!p.isWearing)return;p.isWearing=false;p.lastChange=Date.now();p.events.push(["off",Date.now()]);persist();render("home")}
 function markOn(){let p=period();if(p.isWearing)return;p.offMs+=Date.now()-p.lastChange;p.isWearing=true;p.lastChange=Date.now();p.events.push(["on",Date.now()]);persist();render("home")}
@@ -67,12 +104,95 @@ function pauseChew(){if(chew.running){tickChew();chew.running=false}else if(chew
 function tickChew(){if(!chew.running)return;let now=Date.now(),used=now-chew.last;chew.left-=used;chew.last=now;period().chewMs=(period().chewMs||0)+used;if(chew.left<=0){chew.left=0;chew.running=false;alert("咬胶完成")}persist()}
 function toggleCare(k){let d=periodKey();state.care[d]||={};state.care[d][k]=!state.care[d][k];persist();render("home")}
 
-function manualAdd(){let s=new Date($("#manualStart").value),e=new Date($("#manualEnd").value);if(isNaN(s)||isNaN(e)||e<=s)return alert("请填写正确时间");let p=period(),ms=e-s,idx=$("#manualEditIndex")?.value;if(idx!==""){let mans=p.events.filter(x=>x[0]==="manual_off"),old=mans[Number(idx)],pos=p.events.findIndex(x=>x===old);if(pos>=0){p.offMs=Math.max(0,(p.offMs||0)-(old[3]||0)+ms);p.events[pos]=["manual_off",s.getTime(),e.getTime(),ms]}}else{p.offMs+=ms;p.events.push(["manual_off",s.getTime(),e.getTime(),ms])}persist();render("calendar")}
-function getManualEvents(){return period().events.filter(e=>e[0]==="manual_off")}
-function editOffRecord(i){let it=offIntervalsForPeriod(period())[i];if(!it||it.type!=="manual")return;let mans=getManualEvents(),ei=mans.findIndex(e=>e[1]===it.start&&e[2]===it.end);$("#manualEditIndex").value=ei;$("#manualStart").value=dateTimeLocalValue(it.start);$("#manualEnd").value=dateTimeLocalValue(it.end);$("#manualAdd").textContent="保存修改";$("#manualCancel").classList.remove("hidden")}
-function deleteOffRecord(i){let it=offIntervalsForPeriod(period())[i];if(!it||it.type!=="manual")return;if(!confirm("确定删除这条记录吗？"))return;let p=period(),pos=p.events.findIndex(e=>e[0]==="manual_off"&&e[1]===it.start&&e[2]===it.end);if(pos>=0){p.offMs=Math.max(0,p.offMs-(p.events[pos][3]||0));p.events.splice(pos,1);persist();render("calendar")}}
-function cancelManualEdit(){$("#manualEditIndex").value="";$("#manualStart").value="";$("#manualEnd").value="";$("#manualAdd").textContent="添加补记";$("#manualCancel").classList.add("hidden")}
-function selectCalendarDay(k){let d=new Date(k+"T12:00:00");calendarDate=d;$("#dayTitle").textContent=k+" 摘下记录";$("#dayRecords").innerHTML=recordsForKey(k)}
+function manualAdd(){
+  let s=new Date($("#manualStart").value),e=new Date($("#manualEnd").value);
+  if(isNaN(s)||isNaN(e)||e<=s)return alert("请填写正确时间");
+  let editIdx=$("#manualEditIndex")?.value;
+  let k=$("#manualEditKey")?.value || selectedCalendarKey || periodKey();
+  let p=ensurePeriod(k), ms=e-s;
+
+  if(editIdx!==""){
+    let old=offIntervalsForPeriod(p)[Number(editIdx)];
+    if(!old) return alert("没有找到要修改的记录");
+
+    if(old.type==="manual"){
+      let pos=p.events.findIndex(ev=>ev[0]==="manual_off"&&ev[1]===old.start&&ev[2]===old.end);
+      if(pos>=0){
+        p.offMs=Math.max(0,(p.offMs||0)-(old.ms||0)+ms);
+        p.events[pos]=["manual_off",s.getTime(),e.getTime(),ms];
+      }
+    }else if(old.type==="auto"){
+      let offPos=p.events.findIndex(ev=>ev[0]==="off"&&ev[1]===old.start);
+      let onPos=p.events.findIndex(ev=>ev[0]==="on"&&ev[1]===old.end);
+      if(offPos>=0&&onPos>=0){
+        p.offMs=Math.max(0,(p.offMs||0)-(old.ms||0)+ms);
+        p.events[offPos]=["off",s.getTime()];
+        p.events[onPos]=["on",e.getTime()];
+      }
+    }else{
+      return alert("正在进行中的摘下记录，戴回后再修改");
+    }
+  }else{
+    p.offMs+=ms;
+    p.events.push(["manual_off",s.getTime(),e.getTime(),ms]);
+  }
+  persist();
+  render("calendar");
+}
+
+function getManualEvents(k=selectedCalendarKey){return ensurePeriod(k).events.filter(e=>e[0]==="manual_off")}
+
+function editOffRecord(i){
+  let k = selectedCalendarKey || periodKey();
+  let p = ensurePeriod(k);
+  let it = offIntervalsForPeriod(p)[i];
+  if(!it || it.type==="current") return alert("正在进行中的摘下记录，戴回后再修改");
+
+  $("#manualStart").value = dateTimeLocalValue(it.start);
+  $("#manualEnd").value = dateTimeLocalValue(it.end);
+  $("#manualAdd").textContent = "保存修改";
+  $("#manualCancel").classList.remove("hidden");
+  $("#manualEditIndex").value = i;
+  $("#manualEditKey").value = k;
+  window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
+}
+
+function deleteOffRecord(i){
+  let k = selectedCalendarKey || periodKey();
+  let p = ensurePeriod(k);
+  let it = offIntervalsForPeriod(p)[i];
+  if(!it || it.type==="current") return alert("正在进行中的摘下记录，戴回后再删除");
+  if(!confirm(`确定删除这条摘下记录吗？\n${timeHM(it.start)} ~ ${timeHM(it.end)}，${Math.round(it.ms/60000)} 分钟`))return;
+
+  if(it.type==="manual"){
+    let pos=p.events.findIndex(e=>e[0]==="manual_off"&&e[1]===it.start&&e[2]===it.end);
+    if(pos>=0){
+      p.offMs=Math.max(0,(p.offMs||0)-(p.events[pos][3]||0));
+      p.events.splice(pos,1);
+    }
+  }else{
+    let offPos=p.events.findIndex(e=>e[0]==="off"&&e[1]===it.start);
+    let onPos=p.events.findIndex(e=>e[0]==="on"&&e[1]===it.end);
+    if(offPos>=0 && onPos>=0){
+      p.offMs=Math.max(0,(p.offMs||0)-it.ms);
+      p.events.splice(Math.max(offPos,onPos),1);
+      p.events.splice(Math.min(offPos,onPos),1);
+    }
+  }
+  persist();
+  render("calendar");
+}
+
+function cancelManualEdit(){
+  $("#manualEditIndex").value="";
+  $("#manualEditKey").value="";
+  $("#manualStart").value="";
+  $("#manualEnd").value="";
+  $("#manualAdd").textContent="添加补记";
+  $("#manualCancel").classList.add("hidden");
+}
+
+function selectCalendarDay(k){let d=new Date(k+"T12:00:00");calendarDate=d;selectedCalendarKey=k;$("#dayTitle").textContent=k+" 摘下记录";$("#dayRecords").innerHTML=recordsForKey(k);bindSwipeRows()}
 
 function saveTray(){state.settings={brand:$("#brand").value||"时代天使",totalTrays:+$("#totalTrays").value||42,currentTray:+$("#currentTray").value||1,daysPerTray:+$("#daysPerTray").value||7,trayStartDate:$("#trayStartDate").value||dateStr(new Date()),trayStartTime:$("#trayStartTime").value||"12:00",cycleStartTime:$("#cycleStartTime").value||"12:00"};persist();render("tray")}
 function nextTrayClick(){let s=state.settings;if(s.currentTray>=s.totalTrays)return alert("已经是最后一副");state.trayHistory.unshift({from:s.currentTray,to:s.currentTray+1,at:new Date().toLocaleString()});s.currentTray++;let n=new Date();s.trayStartDate=dateStr(n);s.trayStartTime=`${pad(n.getHours())}:${pad(n.getMinutes())}`;persist();render("tray")}
@@ -97,6 +217,6 @@ function syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeou
 async function syncNow(){if(!user)return;let p=period(),k=periodKey(),off=offMs(),payload={settings:state.settings,periods:state.periods,notes:state.notes,expenses:state.expenses,trayHistory:state.trayHistory,care:state.care,reminder:state.reminder};let r=await sb.from("aligner_records").upsert({user_id:user.id,record_date:k,wear_seconds:Math.floor(wearMs()/1000),off_seconds:Math.floor(off/1000),off_count:(p.events||[]).filter(e=>String(e[0]).includes("off")).length,current_tray:state.settings.currentTray,total_trays:state.settings.totalTrays,tray_start_date:state.settings.trayStartDate,chew_seconds:Math.floor((p.chewMs||0)/1000),note:JSON.stringify(payload),updated_at:new Date().toISOString()},{onConflict:"user_id,record_date"});if(r.error)console.error("sync failed",r.error)}
 
 function tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".big");if(big)big.textContent=fmt(wearMs())}}
-async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user)await pullCloud();render("home");setInterval(tick,1000);setInterval(syncNow,30000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.0.0").then(r=>r.update()).catch(console.warn)}
+async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user)await pullCloud();render("home");setInterval(tick,1000);setInterval(syncNow,30000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
 boot();
 })();
