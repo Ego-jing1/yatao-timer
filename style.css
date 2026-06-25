@@ -55,5 +55,5 @@ canvas{width:100%;height:260px}.ringBox{display:grid;grid-template-columns:1fr 1
 /* v4.2 咬胶计时器控件间距优化 */
 #chewMinutes{font-size:18px;text-align:center}
 
-/* V4.4 咬胶计时器优化 */
+/* V4.5 咬胶计时器优化 */
 #chewMinutes{font-size:18px;text-align:center;margin-top:8px}
