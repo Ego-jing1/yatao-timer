@@ -84,7 +84,22 @@ function statsHtml(){let a7=avg(7);return `<div class="card"><h2 class="center">
 
 function trayHtml(){let s=state.settings,progress=Math.round((s.currentTray-1)/s.totalTrays*100),left=nextTrayDate()-new Date();return `<div class="card"><h2>牙套进度</h2><div class="row"><b>品牌</b><span>${s.brand||"时代天使"}</span></div><div class="row"><b>总共佩戴</b><span>${totalTreatmentDays()} 天</span></div><div class="row"><b>当前</b><span>第 ${s.currentTray} / ${s.totalTrays} 副</span></div><div class="progress"><div class="bar" style="width:${progress}%"></div></div><div class="sub">整体进度 ${progress}%</div><div class="row"><b>换牙套倒计时</b><span>${left<=0?"可以换牙套了":dayHour(left)}</span></div><div class="row"><b>本副已佩戴</b><span>${dayHour(Date.now()-trayStart())}</span></div><button id="nextTrayBtn" class="green">记录已换到下一副</button></div><div class="card"><h2>牙套设置</h2><label>品牌</label><input id="brand" value="${s.brand||"时代天使"}"><br><br><label>开始佩戴牙套日期</label><input id="treatmentStartDate" type="date" value="${s.treatmentStartDate||s.trayStartDate}"><br><br><label>开始佩戴牙套时间</label><input id="treatmentStartTime" type="time" value="${s.treatmentStartTime||s.trayStartTime||"12:00"}"><br><br><label>总副数</label><input id="totalTrays" type="number" value="${s.totalTrays}"><br><br><label>当前第几副</label><input id="currentTray" type="number" value="${s.currentTray}"><br><br><label>每副佩戴天数</label><input id="daysPerTray" type="number" value="${s.daysPerTray}"><br><br><label>本副开始日期</label><input id="trayStartDate" type="date" value="${s.trayStartDate}"><br><br><label>本副开始时间</label><input id="trayStartTime" type="time" value="${s.trayStartTime}"><br><br><label>每日周期开始时间</label><input id="cycleStartTime" type="time" value="${s.cycleStartTime}"><br><br><button id="saveTray" class="green">保存设置</button></div><div class="card"><h2>换牙套历史</h2>${state.trayHistory.map(h=>`<div class="row"><span>第${h.from} → 第${h.to}副</span><span class="muted">${h.at}</span></div>`).join("")||'<p class="muted">暂无记录</p>'}</div>`}
 
-function diaryHtml(){return `<div class="card"><h2>图文日记</h2><textarea id="noteText" placeholder="记录酸痛、黑三角、牙龈、附件、复诊等"></textarea><br><br><label>标签</label><select id="noteTag"><option>普通记录</option><option>黑三角</option><option>疼痛</option><option>磨嘴</option><option>附件</option><option>复诊</option><option>IPR</option></select><br><br><label>上传照片，可多选</label><input id="notePhotos" type="file" accept="image/*" multiple><p class="muted">登录后照片会压缩上传到 Supabase Storage。</p><button id="saveNote" class="green">保存日记</button></div><div class="card"><h2>日记记录</h2>${state.notes.map(n=>`<div class="row" style="display:block"><span class="pill">${n.tag||"普通记录"}</span> <b>第${n.tray}副</b> ${n.text||""}<div class="muted">${n.at}</div><div class="thumbGrid">${(n.photos||[]).map(p=>`<img class="thumb" src="${p.url}">`).join("")}</div></div>`).join("")||'<p class="muted">暂无日记</p>'}</div>`}
+function diaryHtml(){
+  return `<div class="card"><h2>图文日记</h2>
+  <input id="noteEditId" type="hidden">
+  <textarea id="noteText" placeholder="记录酸痛、黑三角、牙龈、附件、复诊等"></textarea><br><br>
+  <label>标签</label><select id="noteTag"><option>普通记录</option><option>黑三角</option><option>疼痛</option><option>磨嘴</option><option>附件</option><option>复诊</option><option>IPR</option></select><br><br>
+  <label>上传照片，可多选</label><input id="notePhotos" type="file" accept="image/*" multiple>
+  <p class="muted">修改文字/标签时不需要重新上传照片；如果选择新照片，会追加到这条日记。</p>
+  <div class="btn2"><button id="saveNote" class="green">保存日记</button><button id="cancelNoteEdit" class="gray hidden">取消修改</button></div>
+  </div><div class="card"><h2>日记记录</h2>${state.notes.map(n=>`<div class="row" style="display:block">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <div><span class="pill">${n.tag||"普通记录"}</span> <b>第${n.tray}副</b> ${n.text||""}<div class="muted">${n.at}${n.editedAt?"　已修改":""}</div></div>
+      <div style="white-space:nowrap"><button class="gray smallBtn editNote" data-id="${n.id}">修改</button><button class="red smallBtn deleteNote" data-id="${n.id}">删除</button></div>
+    </div>
+    <div class="thumbGrid">${(n.photos||[]).map(p=>`<img class="thumb" src="${p.url}">`).join("")}</div>
+  </div>`).join("")||'<p class="muted">暂无日记</p>'}</div>`
+}
 
 function moreHtml(){let total=state.expenses.reduce((s,e)=>s+Number(e.amount||0),0);return `<div class="card"><h2>支出记录</h2><input id="expenseEditId" type="hidden"><input id="expenseAmount" type="number" step="0.01" placeholder="金额"><br><br><select id="expenseCategory"><option>正畸费用</option><option>复诊</option><option>清洁护理</option><option>牙线/冲牙器</option><option>保持器</option><option>交通</option><option>其他</option></select><br><br><input id="expenseDate" type="date" value="${dateStr(new Date())}"><br><br><input id="expenseNote" placeholder="备注"><br><br><div class="btn2"><button id="saveExpense" class="green">保存支出</button><button id="cancelExpenseEdit" class="gray hidden">取消修改</button></div></div><div class="card"><h2>支出统计</h2><div class="muted center">累计支出</div><div class="expenseTotal">¥${total.toFixed(2)}</div>${state.expenses.map(e=>`<div class="row" style="align-items:flex-start"><span><span class="pill">${e.category}</span> ${e.note||""}<br><span class="muted">${e.date}</span></span><span style="text-align:right"><b>¥${Number(e.amount).toFixed(2)}</b><br><button class="gray smallBtn editExpense" data-id="${e.id}">修改</button><button class="red smallBtn deleteExpense" data-id="${e.id}">删除</button></span></div>`).join("")||'<p class="muted">暂无支出</p>'}</div><div class="card"><h2>提醒设置</h2><label>摘下超过提醒</label><select id="offAlert"><option value="30" ${state.reminder.offAlertMin==30?"selected":""}>30分钟</option><option value="60" ${state.reminder.offAlertMin==60?"selected":""}>60分钟</option><option value="90" ${state.reminder.offAlertMin==90?"selected":""}>90分钟</option></select><br><br><button id="saveRemind" class="green">保存提醒</button></div>`}
 
@@ -107,7 +122,10 @@ function bindSwipeRows(){
   });
 }
 
-function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>render("home")}if($("#signout"))$("#signout").onclick=signOut;if($("#pull"))$("#pull").onclick=async()=>{await pullCloud();render(currentPage)};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||2)*60);if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
+function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>render("home")}if($("#signout"))$("#signout").onclick=signOut;if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud();render(currentPage);if(ok)alert("读取云端成功")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||2)*60);if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
+if($("#cancelNoteEdit"))$("#cancelNoteEdit").onclick=cancelNoteEdit;
+$$(".editNote").forEach(b=>b.onclick=()=>editNote(b.dataset.id));
+$$(".deleteNote").forEach(b=>b.onclick=()=>deleteNote(b.dataset.id));if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
 
 function markOff(){let p=period();if(!p.isWearing)return;p.isWearing=false;p.lastChange=Date.now();p.events.push(["off",Date.now()]);persist();render("home")}
 function markOn(){let p=period();if(p.isWearing)return;p.offMs+=Date.now()-p.lastChange;p.isWearing=true;p.lastChange=Date.now();p.events.push(["on",Date.now()]);persist();render("home")}
@@ -215,7 +233,77 @@ function saveRemind(){state.reminder.offAlertMin=Number($("#offAlert").value);pe
 
 async function compressImage(file){return new Promise((resolve,reject)=>{let r=new FileReader();r.onload=e=>{let img=new Image();img.onload=()=>{let scale=Math.min(1,1200/img.width),c=document.createElement("canvas");c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext("2d").drawImage(img,0,0,c.width,c.height);c.toBlob(b=>b?resolve(b):reject(new Error("压缩失败")),"image/jpeg",.8)};img.onerror=reject;img.src=e.target.result};r.onerror=reject;r.readAsDataURL(file)})}
 function blobToDataUrl(blob){return new Promise(res=>{let r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(blob)})}
-async function saveNote(){let text=$("#noteText").value.trim(),tag=$("#noteTag").value,files=Array.from($("#notePhotos").files||[]);if(!text&&!files.length)return alert("请填写日记或上传照片");let photos=[];for(let f of files){let blob=await compressImage(f);if(user){let path=`${user.id}/tray_${state.settings.currentTray}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,up=await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg",upsert:true});if(up.error){alert("照片上传失败："+up.error.message);continue}let pub=sb.storage.from(BUCKET).getPublicUrl(path);photos.push({url:pub.data.publicUrl,path})}else photos.push({url:await blobToDataUrl(blob),local:true})}state.notes.unshift({id:Date.now(),tray:state.settings.currentTray,period:periodKey(),tag,text,photos,at:new Date().toLocaleString()});persist();render("diary")}
+async function saveNote(){
+  let text=$("#noteText").value.trim(),tag=$("#noteTag").value,files=Array.from($("#notePhotos").files||[]);
+  let editId=$("#noteEditId")?.value;
+  if(!text&&!files.length)return alert("请填写日记或上传照片");
+
+  let photos=[];
+  for(let f of files){
+    let blob=await compressImage(f);
+    if(user){
+      let path=`${user.id}/tray_${state.settings.currentTray}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`,
+      up=await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg",upsert:true});
+      if(up.error){alert("照片上传失败："+up.error.message);continue}
+      let pub=sb.storage.from(BUCKET).getPublicUrl(path);
+      photos.push({url:pub.data.publicUrl,path})
+    }else photos.push({url:await blobToDataUrl(blob),local:true})
+  }
+
+  if(editId){
+    let i=state.notes.findIndex(n=>Number(n.id)===Number(editId));
+    if(i>=0){
+      state.notes[i]={
+        ...state.notes[i],
+        tag,
+        text,
+        photos:[...(state.notes[i].photos||[]),...photos],
+        editedAt:new Date().toLocaleString()
+      };
+    }
+  }else{
+    state.notes.unshift({id:Date.now(),tray:state.settings.currentTray,period:periodKey(),tag,text,photos,at:new Date().toLocaleString()})
+  }
+  persist();
+  render("diary")
+}
+
+function editNote(id){
+  let n=state.notes.find(x=>Number(x.id)===Number(id));
+  if(!n)return;
+  $("#noteEditId").value=n.id;
+  $("#noteText").value=n.text||"";
+  $("#noteTag").value=n.tag||"普通记录";
+  $("#saveNote").textContent="保存修改";
+  $("#cancelNoteEdit").classList.remove("hidden");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function cancelNoteEdit(){
+  $("#noteEditId").value="";
+  $("#noteText").value="";
+  $("#noteTag").value="普通记录";
+  $("#notePhotos").value="";
+  $("#saveNote").textContent="保存日记";
+  $("#cancelNoteEdit").classList.add("hidden");
+}
+
+async function deleteNote(id){
+  let n=state.notes.find(x=>Number(x.id)===Number(id));
+  if(!n)return;
+  if(!confirm(`确定删除这条日记吗？\n${n.text||""}`))return;
+
+  // 尝试删除 Storage 中的照片；如果失败，不影响删除日记文字
+  if(user && n.photos && n.photos.length){
+    const paths=n.photos.map(p=>p.path).filter(Boolean);
+    if(paths.length) await sb.storage.from(BUCKET).remove(paths);
+  }
+
+  state.notes=state.notes.filter(x=>Number(x.id)!==Number(id));
+  persist();
+  render("diary");
+}
+
 
 function drawChart(days=7){let s=avg(days),s7=avg(7),s30=avg(30);$("#avg7").textContent=s7.avg.toFixed(1);$("#avg30").textContent=s30.avg.toFixed(1);setRing("ring7",s7.avg);setRing("ring30",s30.avg);if(s.keys.length)$("#rangeText").textContent=`${s.keys[0].replaceAll("-","/")} - ${s.keys.at(-1).replaceAll("-","/")}`;let cv=$("#chart");if(!cv)return;let ctx=cv.getContext("2d");ctx.clearRect(0,0,500,300);let L=42,T=30,W=430,H=210,y20=T+H-(20/24)*H;ctx.strokeStyle="#74c982";ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(L,y20);ctx.lineTo(L+W,y20);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#777";ctx.font="14px sans-serif";ctx.fillText("24",8,T+6);ctx.fillText("0",14,T+H);ctx.fillStyle="#74c982";ctx.fillText("20",L+W-5,y20-8);let pts=s.keys.map((k,i)=>{let h=wearMs(k)/3600000;return {x:L+(s.keys.length===1?W/2:i*W/(s.keys.length-1)),y:T+H-Math.min(24,h)/24*H,h,k}});if(pts.length>1){ctx.strokeStyle="#74c982";ctx.lineWidth=3;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke()}pts.forEach(p=>{ctx.fillStyle=p.h>=22?"#74c982":"#ffb020";ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.fill();ctx.fillStyle="#5b9f62";ctx.fillText(p.h.toFixed(1),p.x-12,p.y-18);ctx.fillStyle="#888";let d=new Date(p.k+"T00:00:00");ctx.fillText(`${d.getMonth()+1}/${d.getDate()}`,p.x-14,T+H+28)})}
 function setRing(id,val){let el=$("#"+id);if(!el)return;let deg=Math.min(360,val/24*360);el.style.background=`conic-gradient(var(--green) 0deg,var(--green) ${deg}deg,#e9f6ec ${deg}deg)`}
@@ -223,7 +311,7 @@ function setRing(id,val){let el=$("#"+id);if(!el)return;let deg=Math.min(360,val
 async function signUp(){let msg=$("#msg");msg.textContent="注册中...";let r=await sb.auth.signUp({email:$("#email").value.trim(),password:$("#pwd").value});msg.textContent=r.error?"注册失败："+r.error.message:"注册成功，请登录或查看邮箱验证"}
 async function signIn(){let msg=$("#msg");msg.textContent="登录中...";let r=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pwd").value});if(r.error)return msg.textContent="登录失败："+r.error.message;user=r.data.user;await pullCloud();render("home")}
 async function signOut(){await syncNow();await sb.auth.signOut();user=null;render("home")}
-async function pullCloud(){if(!user)return;let r=await sb.from("aligner_records").select("*").order("record_date");if(r.error)return alert("读取云端失败："+r.error.message);for(let row of r.data||[]){try{state=Object.assign(state,JSON.parse(row.note||"{}"))}catch{}}state.lastCloudPullAt=new Date().toISOString();persist(false)}
+async function pullCloud(){if(!user)return false;let r=await sb.from("aligner_records").select("*").order("record_date");if(r.error){alert("读取云端失败："+r.error.message);return false}for(let row of r.data||[]){try{state=Object.assign(state,JSON.parse(row.note||"{}"))}catch{}}state.lastCloudPullAt=new Date().toISOString();persist(false);return true}
 function syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
 async function syncNow(){if(!user)return;let p=period(),k=periodKey(),off=offMs(),payload={settings:state.settings,periods:state.periods,notes:state.notes,expenses:state.expenses,trayHistory:state.trayHistory,reminder:state.reminder};let r=await sb.from("aligner_records").upsert({user_id:user.id,record_date:k,wear_seconds:Math.floor(wearMs()/1000),off_seconds:Math.floor(off/1000),off_count:(p.events||[]).filter(e=>String(e[0]).includes("off")).length,current_tray:state.settings.currentTray,total_trays:state.settings.totalTrays,tray_start_date:state.settings.trayStartDate,chew_seconds:Math.floor((p.chewMs||0)/1000),note:JSON.stringify(payload),updated_at:new Date().toISOString()},{onConflict:"user_id,record_date"});if(r.error)console.error("sync failed",r.error)}
 
