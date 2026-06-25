@@ -51,3 +51,6 @@ canvas{width:100%;height:260px}.ringBox{display:grid;grid-template-columns:1fr 1
 .swipeRow.open .swipeContent{transform:translateX(-176px)}
 .chevron{font-size:22px;color:#999}
 @media(hover:hover){.swipeRow:hover .swipeContent{transform:translateX(-176px)}}
+
+/* v4.2 咬胶计时器控件间距优化 */
+#chewMinutes{font-size:18px;text-align:center}
