@@ -1,10 +1,9 @@
-
-const CACHE = 'yatao-timer-v2-1-0';
+const CACHE = 'yatao-timer-v3-0-0';
 const APP_SHELL = [
   './',
   './index.html',
-  './css/style.css?v=2.1.0',
-  './js/app.js?v=2.1.0',
+  './style.css?v=3.0.0',
+  './app.js?v=3.0.0',
   './manifest.json'
 ];
 
@@ -24,7 +23,7 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // 只处理 GET；绝不拦截 Supabase Auth/REST/Storage 的 POST/PUT 请求
+  // Only cache GET requests. Never intercept Supabase / CDN requests.
   if (req.method !== 'GET') return;
   if (url.hostname.includes('supabase.co') || url.hostname.includes('jsdelivr.net')) return;
 
