@@ -2,7 +2,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const SUPABASE_URL = "https://bceamidjnggzpvumswdg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vyHgXa5d0H1q845f5poKcA_6UnXHXkL";
 const BUCKET = "ortho-photos";
@@ -314,19 +314,26 @@ function expenseHtml() {
   const total = state.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
   return `<div class="card">
     <h2>支出记录</h2>
+    <input id="expenseEditId" type="hidden">
     <input id="expenseAmount" type="number" step="0.01" placeholder="金额"><br><br>
     <select id="expenseCategory"><option>正畸费用</option><option>复诊</option><option>清洁护理</option><option>牙线/冲牙器</option><option>保持器</option><option>交通</option><option>其他</option></select><br><br>
     <input id="expenseDate" type="date" value="${dateStr(new Date())}"><br><br>
     <input id="expenseNote" placeholder="备注"><br><br>
-    <button id="saveExpense" class="green">保存支出</button>
+    <div class="btn2">
+      <button id="saveExpense" class="green">保存支出</button>
+      <button id="cancelExpenseEdit" class="gray hidden">取消修改</button>
+    </div>
   </div>
   <div class="card">
     <h2>支出统计</h2>
     <div class="muted center">累计支出</div>
     <div class="expenseTotal">¥${total.toFixed(2)}</div>
-    ${state.expenses.map(e => `<div class="row">
+    ${state.expenses.map(e => `<div class="row" style="align-items:flex-start">
       <span><span class="pill">${e.category}</span> ${e.note || ""}<br><span class="muted">${e.date}</span></span>
-      <b>¥${Number(e.amount).toFixed(2)}</b>
+      <span style="text-align:right"><b>¥${Number(e.amount).toFixed(2)}</b><br>
+        <button class="gray smallBtn editExpense" data-id="${e.id}">修改</button>
+        <button class="red smallBtn deleteExpense" data-id="${e.id}">删除</button>
+      </span>
     </div>`).join("") || '<p class="muted">暂无支出</p>'}
   </div>`;
 }
@@ -368,6 +375,9 @@ function bind() {
   if ($("#nextTrayBtn")) $("#nextTrayBtn").onclick = nextTrayClick;
   if ($("#saveNote")) $("#saveNote").onclick = saveNote;
   if ($("#saveExpense")) $("#saveExpense").onclick = saveExpense;
+  if ($("#cancelExpenseEdit")) $("#cancelExpenseEdit").onclick = cancelExpenseEdit;
+  $$(".editExpense").forEach(b => b.onclick = () => editExpense(b.dataset.id));
+  $$(".deleteExpense").forEach(b => b.onclick = () => deleteExpense(b.dataset.id));
   if ($("#saveRemind")) $("#saveRemind").onclick = saveRemind;
 
   $$(".range").forEach(b => b.onclick = () => {
@@ -456,17 +466,59 @@ function nextTrayClick() {
 function saveExpense() {
   const amount = Number($("#expenseAmount").value);
   if (!amount || amount <= 0) return alert("请输入金额");
-  state.expenses.unshift({
-    id: Date.now(),
+
+  const editId = $("#expenseEditId").value;
+  const item = {
+    id: editId ? Number(editId) : Date.now(),
     amount,
     category: $("#expenseCategory").value,
     date: $("#expenseDate").value || dateStr(new Date()),
     note: $("#expenseNote").value.trim(),
     at: new Date().toLocaleString(),
-  });
+  };
+
+  if (editId) {
+    const idx = state.expenses.findIndex(e => Number(e.id) === Number(editId));
+    if (idx >= 0) state.expenses[idx] = { ...state.expenses[idx], ...item, editedAt: new Date().toLocaleString() };
+  } else {
+    state.expenses.unshift(item);
+  }
+
   persist();
   render("expense");
 }
+
+function editExpense(id) {
+  const e = state.expenses.find(x => Number(x.id) === Number(id));
+  if (!e) return;
+  $("#expenseEditId").value = e.id;
+  $("#expenseAmount").value = e.amount;
+  $("#expenseCategory").value = e.category;
+  $("#expenseDate").value = e.date;
+  $("#expenseNote").value = e.note || "";
+  $("#saveExpense").textContent = "保存修改";
+  $("#cancelExpenseEdit").classList.remove("hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cancelExpenseEdit() {
+  $("#expenseEditId").value = "";
+  $("#expenseAmount").value = "";
+  $("#expenseNote").value = "";
+  $("#expenseDate").value = dateStr(new Date());
+  $("#saveExpense").textContent = "保存支出";
+  $("#cancelExpenseEdit").classList.add("hidden");
+}
+
+function deleteExpense(id) {
+  const e = state.expenses.find(x => Number(x.id) === Number(id));
+  if (!e) return;
+  if (!confirm(`确定删除这笔支出吗？\n${e.category} ${e.note || ""} ¥${Number(e.amount).toFixed(2)}`)) return;
+  state.expenses = state.expenses.filter(x => Number(x.id) !== Number(id));
+  persist();
+  render("expense");
+}
+
 function saveRemind() {
   state.reminder.offAlertMin = Number($("#offAlert").value);
   persist();
@@ -666,7 +718,7 @@ async function boot() {
   if (user) await pullCloud();
   render("home");
   startClock();
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=2.0.0").then(r => r.update()).catch(console.warn);
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js?v=2.1.0").then(r => r.update()).catch(console.warn);
 }
 
 boot();

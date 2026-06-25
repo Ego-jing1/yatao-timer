@@ -1,10 +1,10 @@
 
-const CACHE = 'yatao-timer-v2-0-0';
+const CACHE = 'yatao-timer-v2-1-0';
 const APP_SHELL = [
   './',
   './index.html',
-  './css/style.css?v=2.0.0',
-  './js/app.js?v=2.0.0',
+  './css/style.css?v=2.1.0',
+  './js/app.js?v=2.1.0',
   './manifest.json'
 ];
 
