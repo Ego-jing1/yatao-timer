@@ -1,5 +1,5 @@
-const CACHE='yatao-timer-v4-7-0';
-const APP_SHELL=['./','./index.html','./style.css?v=4.7.0','./app.js?v=4.7.0','./manifest.json'];
+const CACHE='yatao-timer-v4-9-0';
+const APP_SHELL=['./','./index.html','./style.css?v=4.9.0','./app.js?v=4.9.0','./manifest.json'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(APP_SHELL)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim()});
 self.addEventListener('fetch',e=>{

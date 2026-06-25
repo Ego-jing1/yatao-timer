@@ -13,7 +13,7 @@ const pad=n=>String(n).padStart(2,"0");
 const fmt=ms=>{ms=Math.max(0,ms||0);let t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return `${pad(h)}:${pad(m)}:${pad(s)}`};
 const fmtShort=ms=>fmt(ms).slice(3);
 const dateStr=d=>d.toISOString().slice(0,10);
-let user=null,syncTimer=null,currentPage="home",calendarDate=new Date(),chew={left:0,total:0,running:false,last:0};
+let user=null,localMode=false,syncTimer=null,currentPage="home",calendarDate=new Date(),chew={left:0,total:0,running:false,last:0};
 let state=loadState();
 let selectedCalendarKey = periodKey();
 
@@ -46,16 +46,42 @@ function totalTreatmentDays(){
  return Math.max(0,Math.floor(diff/DAY_MS)+1);
 }
 function dayHour(ms){ms=Math.max(0,ms||0);return `${Math.floor(ms/DAY_MS)} 天 ${Math.floor((ms%DAY_MS)/3600000)} 小时`}
-function streak(){let n=0;for(let k of Object.keys(state.periods).sort().reverse()){if(wearMs(k)>=GOAL_MS)n++;else break}return n}
+function streak(){
+ let n=0;
+ const today=periodKey();
+ const keys=Object.keys(state.periods).sort().reverse();
+ for(let k of keys){
+   // 当前周期还没结束时，如果还没到22小时，不应该把连续达标清零
+   if(k===today && cycleElapsedMs(k)<DAY_MS && wearMs(k)<GOAL_MS) continue;
+   if(wearMs(k)>=GOAL_MS)n++;
+   else break;
+ }
+ return n
+}
 function avg(days){let ks=Object.keys(state.periods).sort().slice(-days),sum=0,ok=0;ks.forEach(k=>{let h=wearMs(k)/3600000;sum+=h;if(h>=22)ok++});return {keys:ks,avg:ks.length?sum/ks.length:0,ok,total:ks.length}}
 function offIntervalsForPeriod(p){let events=p.events||[],arr=[],open=null;for(let ev of events){if(ev[0]==="off")open=ev[1];else if(ev[0]==="on"&&open){arr.push({start:open,end:ev[1],ms:ev[1]-open,type:"auto"});open=null}else if(ev[0]==="manual_off")arr.push({start:ev[1],end:ev[2],ms:ev[3],type:"manual"})}if(open)arr.push({start:open,end:Date.now(),ms:Date.now()-open,type:"current"});return arr.sort((a,b)=>a.start-b.start)}
 function timeHM(ts){let d=new Date(ts);return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
 function dateTimeLocalValue(ts){let d=new Date(ts);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`}
 
-function render(page=currentPage){currentPage=page;ensurePeriod();$("#app").innerHTML=`<div class="wrap"><div class="top"><h1>牙套时间管家</h1><div class="muted">${user?"云同步开启":"本地/未登录"}</div></div>${user?accountCard():authCard()}<main>${pageHtml(page)}</main><nav class="tabs">${tab("home","首页",page)}${tab("calendar","日历",page)}${tab("stats","统计",page)}${tab("tray","牙套",page)}${tab("diary","日记",page)}${tab("more","更多",page)}</nav></div>`;bind();if(page==="stats")drawChart(7)}
+function render(page=currentPage){
+  const canUse = !!user || localMode;
+  currentPage = canUse ? page : "login";
+  ensurePeriod();
+
+  if(!canUse){
+    $("#app").innerHTML=`<div class="wrap"><div class="top"><h1>牙套时间管家</h1><div class="muted">请先登录</div></div>${authCard()}</div>`;
+    bind();
+    return;
+  }
+
+  $("#app").innerHTML=`<div class="wrap"><div class="top"><h1>牙套时间管家</h1><div class="muted">${user?"云同步开启":"本地模式"}</div></div>${user?accountCard():localCard()}<main>${pageHtml(page)}</main><nav class="tabs">${tab("home","首页",page)}${tab("calendar","日历",page)}${tab("stats","统计",page)}${tab("tray","牙套",page)}${tab("diary","日记",page)}${tab("more","更多",page)}</nav></div>`;
+  bind();
+  if(page==="stats")drawChart(7);
+}
 function tab(k,l,p){return `<button class="tab ${p===k?"active":""}" data-page="${k}">${l}</button>`}
 function authCard(){return `<div class="card"><h2>云同步登录</h2><p class="muted">邮箱登录后同步到 Supabase，换手机也能恢复。</p><input id="email" type="email" placeholder="邮箱"><br><br><input id="pwd" type="password" placeholder="密码，至少6位"><div class="btn2"><button id="signup">注册</button><button id="signin" class="green">登录</button></div><button id="local" class="black" style="width:100%;margin-top:12px">暂时本地使用</button><p id="msg" class="muted"></p></div>`}
 function accountCard(){return `<div class="card"><div class="row"><b>账号</b><span class="muted">${user.email||""}</span></div><div class="btn2"><button id="pull" class="gray">读取云端</button><button id="signout" class="black">退出登录</button></div></div>`}
+function localCard(){return `<div class="card"><div class="row"><b>模式</b><span class="muted">本地使用，未云同步</span></div><button id="backLogin" class="black" style="width:100%">返回登录</button></div>`}
 function pageHtml(p){return ({home:homeHtml,calendar:calendarHtml,stats:statsHtml,tray:trayHtml,diary:diaryHtml,more:moreHtml}[p]||homeHtml)()}
 
 function homeHtml(){let p=period(),start=cycleStartFor(),end=new Date(start.getTime()+DAY_MS),wear=wearMs(),off=offMs(),pct=Math.min(100,wear/GOAL_MS*100),cur=p.isWearing?0:Date.now()-p.lastChange;return `<div class="card"><div class="sub">本周期已佩戴</div><div class="big">${fmt(wear)}</div><div class="sub">${p.isWearing?"佩戴中":"已摘下"}</div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="sub">${wear>=GOAL_MS?"已达标":"目标 22 小时"}</div><div class="btn2"><button id="markOff" class="red" ${!p.isWearing?"disabled":""}>摘下牙套</button><button id="markOn" class="green" ${p.isWearing?"disabled":""}>戴回牙套</button></div></div><div class="card"><h2>今日概览</h2><div class="row"><b>统计周期</b><span>${dateStr(start)} ${pad(start.getHours())}:${pad(start.getMinutes())} - ${dateStr(end)} ${pad(end.getHours())}:${pad(end.getMinutes())}</span></div><div class="row"><b>摘下累计</b><span>${fmt(off)}</span></div><div class="row"><b>剩余可摘</b><span>${fmt(7200000-off)}</span></div><div class="row"><b>本次摘下</b><span>${fmt(cur)}</span></div><div class="row"><b>摘下次数</b><span>${(p.events||[]).filter(e=>String(e[0]).includes("off")).length} 次</span></div><div class="row"><b>总共佩戴</b><span>${totalTreatmentDays()} 天</span></div><div class="row"><b>连续达标</b><span>${streak()} 天 🔥</span></div><div class="row"><b>咬胶累计</b><span>${fmt(p.chewMs||0)}</span></div></div><div class="card"><h2>咬胶计时器</h2><div class="big" id="chewTime">${fmtShort(chew.left)}</div><label>咬胶时间（分钟）</label><input id="chewMinutes" type="number" min="1" step="1" value="${chew.total?Math.max(1,Math.round(chew.total/60000)):2}"><br><br><button id="chewStart" class="green" style="width:100%">开始咬胶</button><br><br><div class="btn2"><button id="chewPause" class="black">暂停 / 继续</button><button id="chewReset" class="red">重置</button></div><p class="muted">可自由修改时间，例如 1、2、3、5 分钟。</p></div>`}
@@ -122,7 +148,7 @@ function bindSwipeRows(){
   });
 }
 
-function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>render("home")}if($("#signout"))$("#signout").onclick=signOut;if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud();render(currentPage);if(ok)alert("读取云端成功")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||2)*60);if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
+function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>{localMode=true;render("home")}}if($("#signout"))$("#signout").onclick=signOut;if($("#backLogin"))$("#backLogin").onclick=()=>{localMode=false;render("login")};if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud();render(currentPage);if(ok)alert("读取云端成功")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||2)*60);if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
 if($("#cancelNoteEdit"))$("#cancelNoteEdit").onclick=cancelNoteEdit;
 $$(".editNote").forEach(b=>b.onclick=()=>editNote(b.dataset.id));
 $$(".deleteNote").forEach(b=>b.onclick=()=>deleteNote(b.dataset.id));if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
@@ -309,13 +335,13 @@ function drawChart(days=7){let s=avg(days),s7=avg(7),s30=avg(30);$("#avg7").text
 function setRing(id,val){let el=$("#"+id);if(!el)return;let deg=Math.min(360,val/24*360);el.style.background=`conic-gradient(var(--green) 0deg,var(--green) ${deg}deg,#e9f6ec ${deg}deg)`}
 
 async function signUp(){let msg=$("#msg");msg.textContent="注册中...";let r=await sb.auth.signUp({email:$("#email").value.trim(),password:$("#pwd").value});msg.textContent=r.error?"注册失败："+r.error.message:"注册成功，请登录或查看邮箱验证"}
-async function signIn(){let msg=$("#msg");msg.textContent="登录中...";let r=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pwd").value});if(r.error)return msg.textContent="登录失败："+r.error.message;user=r.data.user;await pullCloud();render("home")}
-async function signOut(){await syncNow();await sb.auth.signOut();user=null;render("home")}
+async function signIn(){let msg=$("#msg");msg.textContent="登录中...";let r=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pwd").value});if(r.error)return msg.textContent="登录失败："+r.error.message;user=r.data.user;localMode=false;await pullCloud();render("home")}
+async function signOut(){await syncNow();await sb.auth.signOut();user=null;localMode=false;render("login")}
 async function pullCloud(){if(!user)return false;let r=await sb.from("aligner_records").select("*").order("record_date");if(r.error){alert("读取云端失败："+r.error.message);return false}for(let row of r.data||[]){try{state=Object.assign(state,JSON.parse(row.note||"{}"))}catch{}}state.lastCloudPullAt=new Date().toISOString();persist(false);return true}
 function syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
 async function syncNow(){if(!user)return;let p=period(),k=periodKey(),off=offMs(),payload={settings:state.settings,periods:state.periods,notes:state.notes,expenses:state.expenses,trayHistory:state.trayHistory,reminder:state.reminder};let r=await sb.from("aligner_records").upsert({user_id:user.id,record_date:k,wear_seconds:Math.floor(wearMs()/1000),off_seconds:Math.floor(off/1000),off_count:(p.events||[]).filter(e=>String(e[0]).includes("off")).length,current_tray:state.settings.currentTray,total_trays:state.settings.totalTrays,tray_start_date:state.settings.trayStartDate,chew_seconds:Math.floor((p.chewMs||0)/1000),note:JSON.stringify(payload),updated_at:new Date().toISOString()},{onConflict:"user_id,record_date"});if(r.error)console.error("sync failed",r.error)}
 
 function tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".big");if(big)big.textContent=fmt(wearMs())}}
-async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user)await pullCloud();render("home");setInterval(tick,1000);setInterval(syncNow,30000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
+async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user)await pullCloud();render(user?"home":"login");setInterval(tick,1000);setInterval(syncNow,30000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
 boot();
 })();
