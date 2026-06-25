@@ -87,3 +87,8 @@ using (
   bucket_id = 'ortho-photos'
   and auth.uid()::text = (storage.foldername(name))[1]
 );
+
+
+-- V5.1 Realtime：开启 aligner_records 实时推送
+-- 如果提示 already member of publication，可以忽略。
+alter publication supabase_realtime add table public.aligner_records;

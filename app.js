@@ -13,7 +13,7 @@ const pad=n=>String(n).padStart(2,"0");
 const fmt=ms=>{ms=Math.max(0,ms||0);let t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return `${pad(h)}:${pad(m)}:${pad(s)}`};
 const fmtShort=ms=>fmt(ms).slice(3);
 const dateStr=d=>d.toISOString().slice(0,10);
-let user=null,localMode=false,syncTimer=null,currentPage="home",calendarDate=new Date(),chew={left:0,total:0,running:false,last:0};
+let user=null,localMode=false,syncTimer=null,currentPage="home",calendarDate=new Date(),realtimeChannel=null,isPullingCloud=false,lastLocalSyncAt=0,chew={left:0,total:0,running:false,last:0};
 let state=loadState();
 let selectedCalendarKey = periodKey();
 
@@ -80,7 +80,7 @@ function render(page=currentPage){
 }
 function tab(k,l,p){return `<button class="tab ${p===k?"active":""}" data-page="${k}">${l}</button>`}
 function authCard(){return `<div class="card"><h2>云同步登录</h2><p class="muted">邮箱登录后同步到 Supabase，换手机也能恢复。</p><input id="email" type="email" placeholder="邮箱"><br><br><input id="pwd" type="password" placeholder="密码，至少6位"><div class="btn2"><button id="signup">注册</button><button id="signin" class="green">登录</button></div><button id="local" class="black" style="width:100%;margin-top:12px">暂时本地使用</button><p id="msg" class="muted"></p></div>`}
-function accountCard(){return `<div class="card"><div class="row"><b>账号</b><span class="muted">${user.email||""}</span></div><div class="btn2"><button id="pull" class="gray">读取云端</button><button id="signout" class="black">退出登录</button></div></div>`}
+function accountCard(){return `<div class="card"><div class="row"><b>账号</b><span class="muted">${user.email||""}</span></div><div class="row"><b>实时同步</b><span class="muted" id="rtStatus">已开启</span></div><div class="btn2"><button id="pull" class="gray">读取云端</button><button id="signout" class="black">退出登录</button></div></div>`}
 function localCard(){return `<div class="card"><div class="row"><b>模式</b><span class="muted">本地使用，未云同步</span></div><button id="backLogin" class="black" style="width:100%">返回登录</button></div>`}
 function pageHtml(p){return ({home:homeHtml,calendar:calendarHtml,stats:statsHtml,tray:trayHtml,diary:diaryHtml,more:moreHtml}[p]||homeHtml)()}
 
@@ -233,7 +233,7 @@ function bindSwipeRows(){
   });
 }
 
-function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>{localMode=true;render("home")}}if($("#signout"))$("#signout").onclick=signOut;if($("#backLogin"))$("#backLogin").onclick=()=>{localMode=false;render("login")};if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud();render(currentPage);if(ok)alert("读取云端成功")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||5)*60);if($("#chewMinus"))$("#chewMinus").onclick=()=>{$("#chewMinutes").value=Math.max(1,Number($("#chewMinutes").value||5)-1)};if($("#chewPlus"))$("#chewPlus").onclick=()=>{$("#chewMinutes").value=Number($("#chewMinutes").value||5)+1};if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
+function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>{localMode=true;render("home")}}if($("#signout"))$("#signout").onclick=signOut;if($("#backLogin"))$("#backLogin").onclick=()=>{localMode=false;render("login")};if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud({manual:true});render(currentPage);if(ok)alert("已同步最新数据")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||5)*60);if($("#chewMinus"))$("#chewMinus").onclick=()=>{$("#chewMinutes").value=Math.max(1,Number($("#chewMinutes").value||5)-1)};if($("#chewPlus"))$("#chewPlus").onclick=()=>{$("#chewMinutes").value=Number($("#chewMinutes").value||5)+1};if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
 if($("#cancelNoteEdit"))$("#cancelNoteEdit").onclick=cancelNoteEdit;
 $$(".editNote").forEach(b=>b.onclick=()=>editNote(b.dataset.id));
 $$(".deleteNote").forEach(b=>b.onclick=()=>deleteNote(b.dataset.id));if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
@@ -420,13 +420,84 @@ function drawChart(days=7){let s=avg(days),s7=avg(7),s30=avg(30);$("#avg7").text
 function setRing(id,val){let el=$("#"+id);if(!el)return;let deg=Math.min(360,val/24*360);el.style.background=`conic-gradient(var(--green) 0deg,var(--green) ${deg}deg,#e9f6ec ${deg}deg)`}
 
 async function signUp(){let msg=$("#msg");msg.textContent="注册中...";let r=await sb.auth.signUp({email:$("#email").value.trim(),password:$("#pwd").value});msg.textContent=r.error?"注册失败："+r.error.message:"注册成功，请登录或查看邮箱验证"}
-async function signIn(){let msg=$("#msg");msg.textContent="登录中...";let r=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pwd").value});if(r.error)return msg.textContent="登录失败："+r.error.message;user=r.data.user;localMode=false;await pullCloud();render("home")}
-async function signOut(){await syncNow();await sb.auth.signOut();user=null;localMode=false;render("login")}
-async function pullCloud(){if(!user)return false;let r=await sb.from("aligner_records").select("*").order("record_date");if(r.error){alert("读取云端失败："+r.error.message);return false}for(let row of r.data||[]){try{state=Object.assign(state,JSON.parse(row.note||"{}"))}catch{}}state.lastCloudPullAt=new Date().toISOString();persist(false);return true}
-function syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
-async function syncNow(){if(!user)return;let p=period(),k=periodKey(),off=offMs(),payload={settings:state.settings,periods:state.periods,notes:state.notes,expenses:state.expenses,trayHistory:state.trayHistory,reminder:state.reminder};let r=await sb.from("aligner_records").upsert({user_id:user.id,record_date:k,wear_seconds:Math.floor(wearMs()/1000),off_seconds:Math.floor(off/1000),off_count:(p.events||[]).filter(e=>String(e[0]).includes("off")).length,current_tray:state.settings.currentTray,total_trays:state.settings.totalTrays,tray_start_date:state.settings.trayStartDate,chew_seconds:Math.floor((p.chewMs||0)/1000),note:JSON.stringify(payload),updated_at:new Date().toISOString()},{onConflict:"user_id,record_date"});if(r.error)console.error("sync failed",r.error)}
+async function signIn(){let msg=$("#msg");msg.textContent="登录中...";let r=await sb.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#pwd").value});if(r.error)return msg.textContent="登录失败："+r.error.message;user=r.data.user;localMode=false;await pullCloud({manual:false});setupRealtime();render("home")}
+async function signOut(){await syncNow();if(realtimeChannel){await sb.removeChannel(realtimeChannel);realtimeChannel=null}await sb.auth.signOut();user=null;localMode=false;render("login")}
+async function pullCloud({manual=false}={}){
+  if(!user)return false;
+  if(isPullingCloud)return false;
+  isPullingCloud=true;
 
-function tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".heroTime");if(big)big.textContent=fmt(wearMs())}}
-async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user)await pullCloud();render(user?"home":"login");setInterval(tick,1000);setInterval(syncNow,30000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
+  const r=await sb.from("aligner_records").select("*").eq("user_id",user.id).order("updated_at",{ascending:true});
+  if(r.error){
+    isPullingCloud=false;
+    if(manual)alert("读取云端失败："+r.error.message);
+    return false;
+  }
+
+  for(let row of r.data||[]){
+    try{
+      const remote=JSON.parse(row.note||"{}");
+      // 云端数据按 updated_at 顺序合并；新数据会覆盖旧字段
+      state=Object.assign(state,remote);
+    }catch{}
+  }
+  state.lastCloudPullAt=new Date().toISOString();
+  persist(false);
+  isPullingCloud=false;
+  return true;
+}
+
+function setupRealtime(){
+  if(!user)return;
+  if(realtimeChannel)sb.removeChannel(realtimeChannel);
+
+  realtimeChannel=sb
+    .channel("aligner_records_realtime_"+user.id)
+    .on("postgres_changes",
+      {
+        event:"*",
+        schema:"public",
+        table:"aligner_records",
+        filter:"user_id=eq."+user.id
+      },
+      async(payload)=>{
+        // 避免自己刚保存后马上收到回推又重复刷新；其它设备的变化会实时拉取
+        const ts=payload?.new?.updated_at ? new Date(payload.new.updated_at).getTime() : Date.now();
+        if(Date.now()-lastLocalSyncAt<1200 && Math.abs(ts-lastLocalSyncAt)<3000)return;
+
+        const ok=await pullCloud({manual:false});
+        if(ok)render(currentPage==="login"?"home":currentPage);
+      }
+    )
+    .subscribe(status=>{
+      const el=$("#rtStatus");
+      if(el)el.textContent=status==="SUBSCRIBED"?"已开启":"连接中";
+      console.log("Realtime:",status);
+    });
+}
+function syncLaterfunction syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
+async function syncNow(){
+  if(!user)return;
+  let p=period(),k=periodKey(),off=offMs(),
+      payload={settings:state.settings,periods:state.periods,notes:state.notes,expenses:state.expenses,trayHistory:state.trayHistory,reminder:state.reminder,lastUpdatedAt:new Date().toISOString()};
+  lastLocalSyncAt=Date.now();
+  let r=await sb.from("aligner_records").upsert({
+    user_id:user.id,
+    record_date:k,
+    wear_seconds:Math.floor(wearMs()/1000),
+    off_seconds:Math.floor(off/1000),
+    off_count:(p.events||[]).filter(e=>String(e[0]).includes("off")).length,
+    current_tray:state.settings.currentTray,
+    total_trays:state.settings.totalTrays,
+    tray_start_date:state.settings.trayStartDate,
+    chew_seconds:Math.floor((p.chewMs||0)/1000),
+    note:JSON.stringify(payload),
+    updated_at:new Date().toISOString()
+  },{onConflict:"user_id,record_date"});
+  if(r.error)console.error("sync failed",r.error)
+}
+
+function tickfunction tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".heroTime");if(big)big.textContent=fmt(wearMs())}}
+async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user){await pullCloud({manual:false});setupRealtime()}render(user?"home":"login");setInterval(tick,1000);setInterval(syncNow,120000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
 boot();
 })();

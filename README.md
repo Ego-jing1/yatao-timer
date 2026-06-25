@@ -1,19 +1,15 @@
-# 牙套时间管家 V5.0 Pink Mobile
+# 牙套时间管家 V5.1 Realtime
 
-粉色可爱风、手机优先布局版本。
-
-保留功能：
-- 邮箱登录 / 云同步 / 本地模式
-- 首页大字体佩戴时间
-- 今日摘下记录，支持左滑修改/删除
-- 手动补记摘下时间
-- 总佩戴天数、连续达标天数
-- 咬胶计时器，可自定义分钟
-- 日历记录
-- 统计图
-- 牙套进度
-- 日记修改/删除/图片
-- 支出修改/删除
+新增：
+- Supabase Realtime 实时同步
+- 数据改变时其他设备自动刷新
+- 数据不变时不轮询数据库
+- 手动“读取云端”成功才弹窗
+- 自动同步静默，不打扰使用
 
 上传 GitHub 根目录文件：
 index.html, style.css, app.js, sw.js, manifest.json
+
+Supabase SQL：
+如果之前没开启 Realtime，请执行 supabase.sql 里的 V5.1 Realtime 部分：
+alter publication supabase_realtime add table public.aligner_records;
