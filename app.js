@@ -1,11 +1,11 @@
 
 (() => {
 'use strict';
-const VERSION="4.1.0";
+const VERSION="5.2.0";
 const SUPABASE_URL="https://bceamidjnggzpvumswdg.supabase.co";
 const SUPABASE_KEY="sb_publishable_vyHgXa5d0H1q845f5poKcA_6UnXHXkL";
 const BUCKET="ortho-photos";
-const STORAGE_KEY="yatao_timer_v4";
+const STORAGE_KEY="yatao_timer_v5";
 const GOAL_MS=22*3600*1000, DAY_MS=24*3600*1000;
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
@@ -475,7 +475,7 @@ function setupRealtime(){
       console.log("Realtime:",status);
     });
 }
-function syncLaterfunction syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
+function syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
 async function syncNow(){
   if(!user)return;
   let p=period(),k=periodKey(),off=offMs(),
@@ -497,7 +497,7 @@ async function syncNow(){
   if(r.error)console.error("sync failed",r.error)
 }
 
-function tickfunction tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".heroTime");if(big)big.textContent=fmt(wearMs())}}
-async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user){await pullCloud({manual:false});setupRealtime()}render(user?"home":"login");setInterval(tick,1000);setInterval(syncNow,120000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
+function tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".heroTime");if(big)big.textContent=fmt(wearMs())}}
+async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user){await pullCloud({manual:false});setupRealtime()}render(user?"home":"login");setInterval(tick,1000);setInterval(syncNow,120000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=5.2.0").then(r=>r.update()).catch(console.warn)}
 boot();
 })();

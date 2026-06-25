@@ -1,6 +1,7 @@
--- 牙套时间管家 V4.0 数据库 + Storage SQL
--- Supabase → SQL Editor → New Query → 粘贴整段 → Run
--- 可重复执行，不会删除已有数据。
+-- =====================================================
+-- 牙套时间管家 V5.2 完整数据库 SQL
+-- 可重复执行；不会删除已有数据。
+-- =====================================================
 
 create extension if not exists pgcrypto;
 
@@ -25,9 +26,33 @@ create table if not exists public.aligner_records (
   chew_seconds integer default 0,
   note text,
   created_at timestamptz default now(),
-  updated_at timestamptz default now(),
-  unique(user_id, record_date)
+  updated_at timestamptz default now()
 );
+
+create unique index if not exists aligner_records_user_day_idx
+on public.aligner_records(user_id, record_date);
+
+create index if not exists aligner_records_user_idx
+on public.aligner_records(user_id);
+
+create index if not exists aligner_records_update_idx
+on public.aligner_records(updated_at);
+
+create or replace function public.update_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_aligner_records_updated_at on public.aligner_records;
+
+create trigger trg_aligner_records_updated_at
+before update on public.aligner_records
+for each row execute function public.update_updated_at();
 
 alter table public.user_profiles enable row level security;
 alter table public.aligner_records enable row level security;
@@ -37,22 +62,51 @@ grant select, insert, update, delete on public.user_profiles to authenticated;
 grant select, insert, update, delete on public.aligner_records to authenticated;
 
 drop policy if exists "profile_owner" on public.user_profiles;
-drop policy if exists "record_owner" on public.aligner_records;
-
 create policy "profile_owner"
 on public.user_profiles for all to authenticated
-using (auth.uid() = id) with check (auth.uid() = id);
+using (auth.uid() = id)
+with check (auth.uid() = id);
 
+drop policy if exists "record_owner" on public.aligner_records;
 create policy "record_owner"
 on public.aligner_records for all to authenticated
-using (auth.uid() = user_id) with check (auth.uid() = user_id);
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+-- =====================================================
+-- Realtime：幂等开启，不会因为已经开启而报错
+-- =====================================================
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'aligner_records'
+  ) then
+    alter publication supabase_realtime add table public.aligner_records;
+  end if;
+end
+$$;
+
+-- =====================================================
+-- Storage Bucket：与代码一致，使用 ortho-photos
+-- =====================================================
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('ortho-photos','ortho-photos',true,5242880,array['image/jpeg','image/png','image/webp'])
+values (
+  'ortho-photos',
+  'ortho-photos',
+  true,
+  5242880,
+  array['image/jpeg','image/png','image/webp','image/heic']
+)
 on conflict (id) do update
-set public=true,
-    file_size_limit=5242880,
-    allowed_mime_types=array['image/jpeg','image/png','image/webp'];
+set public = true,
+    file_size_limit = 5242880,
+    allowed_mime_types = array['image/jpeg','image/png','image/webp','image/heic'];
 
 drop policy if exists "ortho_photos_select" on storage.objects;
 drop policy if exists "ortho_photos_insert_own" on storage.objects;
@@ -88,7 +142,4 @@ using (
   and auth.uid()::text = (storage.foldername(name))[1]
 );
 
-
--- V5.1 Realtime：开启 aligner_records 实时推送
--- 如果提示 already member of publication，可以忽略。
-alter publication supabase_realtime add table public.aligner_records;
+select '牙套时间管家 V5.2 数据库初始化完成 ✅' as result;
