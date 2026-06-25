@@ -84,7 +84,92 @@ function accountCard(){return `<div class="card"><div class="row"><b>账号</b><
 function localCard(){return `<div class="card"><div class="row"><b>模式</b><span class="muted">本地使用，未云同步</span></div><button id="backLogin" class="black" style="width:100%">返回登录</button></div>`}
 function pageHtml(p){return ({home:homeHtml,calendar:calendarHtml,stats:statsHtml,tray:trayHtml,diary:diaryHtml,more:moreHtml}[p]||homeHtml)()}
 
-function homeHtml(){let p=period(),start=cycleStartFor(),end=new Date(start.getTime()+DAY_MS),wear=wearMs(),off=offMs(),pct=Math.min(100,wear/GOAL_MS*100),cur=p.isWearing?0:Date.now()-p.lastChange;return `<div class="card"><div class="sub">本周期已佩戴</div><div class="big">${fmt(wear)}</div><div class="sub">${p.isWearing?"佩戴中":"已摘下"}</div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="sub">${wear>=GOAL_MS?"已达标":"目标 22 小时"}</div><div class="btn2"><button id="markOff" class="red" ${!p.isWearing?"disabled":""}>摘下牙套</button><button id="markOn" class="green" ${p.isWearing?"disabled":""}>戴回牙套</button></div></div><div class="card"><h2>今日概览</h2><div class="row"><b>统计周期</b><span>${dateStr(start)} ${pad(start.getHours())}:${pad(start.getMinutes())} - ${dateStr(end)} ${pad(end.getHours())}:${pad(end.getMinutes())}</span></div><div class="row"><b>摘下累计</b><span>${fmt(off)}</span></div><div class="row"><b>剩余可摘</b><span>${fmt(7200000-off)}</span></div><div class="row"><b>本次摘下</b><span>${fmt(cur)}</span></div><div class="row"><b>摘下次数</b><span>${(p.events||[]).filter(e=>String(e[0]).includes("off")).length} 次</span></div><div class="row"><b>总共佩戴</b><span>${totalTreatmentDays()} 天</span></div><div class="row"><b>连续达标</b><span>${streak()} 天 🔥</span></div><div class="row"><b>咬胶累计</b><span>${fmt(p.chewMs||0)}</span></div></div><div class="card"><h2>咬胶计时器</h2><div class="big" id="chewTime">${fmtShort(chew.left)}</div><label>咬胶时间（分钟）</label><input id="chewMinutes" type="number" min="1" step="1" value="${chew.total?Math.max(1,Math.round(chew.total/60000)):2}"><br><br><button id="chewStart" class="green" style="width:100%">开始咬胶</button><br><br><div class="btn2"><button id="chewPause" class="black">暂停 / 继续</button><button id="chewReset" class="red">重置</button></div><p class="muted">可自由修改时间，例如 1、2、3、5 分钟。</p></div>`}
+function homeHtml(){
+  let p=period(),start=cycleStartFor(),end=new Date(start.getTime()+DAY_MS),
+      wear=wearMs(),off=offMs(),pct=Math.min(100,wear/GOAL_MS*100),
+      cur=p.isWearing?0:Date.now()-p.lastChange,
+      offCount=(p.events||[]).filter(e=>String(e[0]).includes("off")).length,
+      remain=7200000-off,
+      trayPct=Math.min(100,Math.round((state.settings.currentTray-1)/state.settings.totalTrays*100));
+
+  return `<section class="pinkHero">
+    <div class="heroTop">
+      <div>
+        <div class="heroTitle">牙套时间管家</div>
+        <div class="heroSub">好好佩戴 · 早日毕业 ✨</div>
+      </div>
+      <div class="cloudPill">☁️ ${user?"云同步":"本地"}</div>
+    </div>
+    <div class="toothFloat">🦷</div>
+  </section>
+
+  <div class="card heroCard">
+    <div class="sub">今天已佩戴</div>
+    <div class="heroTime">${fmt(wear)}</div>
+    <div class="progress bigProgress"><div class="bar pinkBar" style="width:${pct}%"></div></div>
+    <div class="heroMeta">
+      <span>22 / 24 小时</span>
+      <b class="${wear>=GOAL_MS?"okText":"warnText"}">${wear>=GOAL_MS?"达标 ✓":"距离达标 "+fmt(GOAL_MS-wear)}</b>
+    </div>
+    <div class="btn2 heroButtons">
+      <button id="markOff" class="red" ${!p.isWearing?"disabled":""}>摘下牙套</button>
+      <button id="markOn" class="green" ${p.isWearing?"disabled":""}>戴回牙套</button>
+    </div>
+  </div>
+
+  <div class="card compactCard">
+    <div class="sectionHead">
+      <h2>今日摘下记录</h2>
+      <span class="muted">${offCount} 次</span>
+    </div>
+    <div>${recordsForKey(periodKey())}</div>
+  </div>
+
+  <div class="card compactCard">
+    <div class="sectionHead"><h2>补记摘下时间</h2><span class="muted">忘记记录时使用</span></div>
+    <input id="manualEditIndex" type="hidden"><input id="manualEditKey" type="hidden">
+    <label>摘下时间</label><input id="manualStart" type="datetime-local">
+    <br><br>
+    <label>戴回时间</label><input id="manualEnd" type="datetime-local">
+    <br><br>
+    <div class="btn2"><button id="manualAdd" class="green">保存补记</button><button id="manualCancel" class="gray hidden">取消修改</button></div>
+  </div>
+
+  <div class="card compactCard">
+    <h2>今日概览</h2>
+    <div class="summaryGrid">
+      <div class="summaryItem"><span>今日摘下</span><b>${fmt(off)}</b></div>
+      <div class="summaryItem"><span>剩余可摘</span><b class="${remain>=0?"okText":"dangerText"}">${remain>=0?fmt(remain):"超 "+fmt(-remain)}</b></div>
+      <div class="summaryItem"><span>摘下次数</span><b>${offCount} 次</b></div>
+      <div class="summaryItem"><span>连续达标</span><b>${streak()} 天 🔥</b></div>
+      <div class="summaryItem"><span>总共佩戴</span><b>${totalTreatmentDays()} 天</b></div>
+      <div class="summaryItem"><span>当前牙套</span><b>第 ${state.settings.currentTray} 副</b></div>
+    </div>
+    <div class="miniTray">
+      <span>整体进度 ${trayPct}%</span>
+      <div class="progress"><div class="bar pinkBar" style="width:${trayPct}%"></div></div>
+    </div>
+  </div>
+
+  <div class="card chewCard">
+    <div class="sectionHead"><h2>咬胶计时器</h2><span class="muted">今日累计 ${fmt(p.chewMs||0)}</span></div>
+    <div class="chewLayout">
+      <div>
+        <div class="chewTime" id="chewTime">${fmtShort(chew.left)}</div>
+        <div class="minuteControl">
+          <button id="chewMinus" class="roundBtn" type="button">−</button>
+          <input id="chewMinutes" type="number" min="1" step="1" value="${chew.total?Math.max(1,Math.round(chew.total/60000)):5}">
+          <button id="chewPlus" class="roundBtn" type="button">＋</button>
+        </div>
+      </div>
+      <div class="chewActions">
+        <button id="chewStart" class="green">开始</button>
+        <button id="chewPause" class="yellow">暂停</button>
+        <button id="chewReset" class="gray">重置</button>
+      </div>
+    </div>
+  </div>`;
+}
 
 function calendarHtml(){let y=calendarDate.getFullYear(),m=calendarDate.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),startDay=(first.getDay()+6)%7;let cells=[];for(let i=0;i<startDay;i++)cells.push(`<div class="dayCell empty"></div>`);for(let d=1;d<=last.getDate();d++){let dt=new Date(y,m,d),k=dateStr(dt),p=state.periods[k],wear=p?wearMs(k):0,cls=p?(wear>=GOAL_MS?"ok":"bad"):"zero",today=k===dateStr(new Date())?"today":"";cells.push(`<div class="dayCell ${cls} ${today}" data-day="${k}">${d}<span class="mini">${p?(wear/3600000).toFixed(1)+"h":""}</span></div>`)}let selected=selectedCalendarKey||periodKey();return `<div class="card"><div class="calendarHead"><button id="prevMonth" class="gray">‹</button><h2>${y} 年 ${m+1} 月</h2><button id="nextMonth" class="gray">›</button></div><div class="calendarGrid">${["一","二","三","四","五","六","日"].map(w=>`<div class="weekday">${w}</div>`).join("")}${cells.join("")}</div></div><div class="card"><h2 id="dayTitle">${selected} 摘下记录</h2><div id="dayRecords">${recordsForKey(selected)}</div></div><div class="card"><h2>手动补记</h2><input id="manualEditIndex" type="hidden"><input id="manualEditKey" type="hidden"><label>摘下时间</label><input id="manualStart" type="datetime-local"><br><br><label>戴回时间</label><input id="manualEnd" type="datetime-local"><br><br><div class="btn2"><button id="manualAdd" class="green">添加补记</button><button id="manualCancel" class="gray hidden">取消修改</button></div></div>`}
 function recordsForKey(k){
@@ -148,7 +233,7 @@ function bindSwipeRows(){
   });
 }
 
-function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>{localMode=true;render("home")}}if($("#signout"))$("#signout").onclick=signOut;if($("#backLogin"))$("#backLogin").onclick=()=>{localMode=false;render("login")};if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud();render(currentPage);if(ok)alert("读取云端成功")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||2)*60);if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
+function bind(){$$(".tab").forEach(b=>b.onclick=()=>render(b.dataset.page));if($("#signup")){$("#signup").onclick=signUp;$("#signin").onclick=signIn;$("#local").onclick=()=>{localMode=true;render("home")}}if($("#signout"))$("#signout").onclick=signOut;if($("#backLogin"))$("#backLogin").onclick=()=>{localMode=false;render("login")};if($("#pull"))$("#pull").onclick=async()=>{let ok=await pullCloud();render(currentPage);if(ok)alert("读取云端成功")};if($("#markOff"))$("#markOff").onclick=markOff;if($("#markOn"))$("#markOn").onclick=markOn;if($("#chewStart"))$("#chewStart").onclick=()=>startChew(Number($("#chewMinutes").value||5)*60);if($("#chewMinus"))$("#chewMinus").onclick=()=>{$("#chewMinutes").value=Math.max(1,Number($("#chewMinutes").value||5)-1)};if($("#chewPlus"))$("#chewPlus").onclick=()=>{$("#chewMinutes").value=Number($("#chewMinutes").value||5)+1};if($("#chewPause"))$("#chewPause").onclick=pauseChew;if($("#chewReset"))$("#chewReset").onclick=()=>{chew={left:0,total:0,running:false,last:0};render("home")};if($("#manualAdd"))$("#manualAdd").onclick=manualAdd;if($("#manualCancel"))$("#manualCancel").onclick=cancelManualEdit;$$(".editOffRecord").forEach(b=>b.onclick=()=>editOffRecord(Number(b.dataset.index)));$$(".deleteOffRecord").forEach(b=>b.onclick=()=>deleteOffRecord(Number(b.dataset.index)));bindSwipeRows();$$(".dayCell[data-day]").forEach(b=>b.onclick=()=>selectCalendarDay(b.dataset.day));if($("#prevMonth"))$("#prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);render("calendar")};if($("#nextMonth"))$("#nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);render("calendar")};$$(".range").forEach(b=>b.onclick=()=>{$$(".range").forEach(x=>x.classList.remove("active"));b.classList.add("active");drawChart(Number(b.dataset.days))});if($("#saveTray"))$("#saveTray").onclick=saveTray;if($("#nextTrayBtn"))$("#nextTrayBtn").onclick=nextTrayClick;if($("#saveNote"))$("#saveNote").onclick=saveNote;
 if($("#cancelNoteEdit"))$("#cancelNoteEdit").onclick=cancelNoteEdit;
 $$(".editNote").forEach(b=>b.onclick=()=>editNote(b.dataset.id));
 $$(".deleteNote").forEach(b=>b.onclick=()=>deleteNote(b.dataset.id));if($("#saveExpense"))$("#saveExpense").onclick=saveExpense;if($("#cancelExpenseEdit"))$("#cancelExpenseEdit").onclick=cancelExpenseEdit;$$(".editExpense").forEach(b=>b.onclick=()=>editExpense(b.dataset.id));$$(".deleteExpense").forEach(b=>b.onclick=()=>deleteExpense(b.dataset.id));if($("#saveRemind"))$("#saveRemind").onclick=saveRemind}
@@ -341,7 +426,7 @@ async function pullCloud(){if(!user)return false;let r=await sb.from("aligner_re
 function syncLater(){if(!user)return;clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,1000)}
 async function syncNow(){if(!user)return;let p=period(),k=periodKey(),off=offMs(),payload={settings:state.settings,periods:state.periods,notes:state.notes,expenses:state.expenses,trayHistory:state.trayHistory,reminder:state.reminder};let r=await sb.from("aligner_records").upsert({user_id:user.id,record_date:k,wear_seconds:Math.floor(wearMs()/1000),off_seconds:Math.floor(off/1000),off_count:(p.events||[]).filter(e=>String(e[0]).includes("off")).length,current_tray:state.settings.currentTray,total_trays:state.settings.totalTrays,tray_start_date:state.settings.trayStartDate,chew_seconds:Math.floor((p.chewMs||0)/1000),note:JSON.stringify(payload),updated_at:new Date().toISOString()},{onConflict:"user_id,record_date"});if(r.error)console.error("sync failed",r.error)}
 
-function tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".big");if(big)big.textContent=fmt(wearMs())}}
+function tick(){if(chew.running)tickChew();let t=$("#chewTime");if(t)t.textContent=fmtShort(chew.left);if(currentPage==="home"){let big=$(".heroTime");if(big)big.textContent=fmt(wearMs())}}
 async function boot(){ensurePeriod();let s=await sb.auth.getSession();user=s.data.session?.user||null;if(user)await pullCloud();render(user?"home":"login");setInterval(tick,1000);setInterval(syncNow,30000);if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=4.1.0").then(r=>r.update()).catch(console.warn)}
 boot();
 })();
